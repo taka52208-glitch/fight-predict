@@ -80,15 +80,24 @@ async def root():
     return {"message": "格闘技試合予測ツール API"}
 
 
-@app.get("/api/fighter/{name}")
-async def get_fighter(name: str, org: str = "ufc") -> Fighter:
-    """Search for a fighter by name (supports Japanese)."""
+async def _find_fighter(name: str, org: str):
+    """Try primary org, fall back to the other org if not found."""
     resolved = _resolve_name(name)
-
     if org.lower() == "ufc":
         fighter = await search_fighter(resolved)
+        if not fighter:
+            fighter = await search_rizin_fighter(resolved)
     else:
         fighter = await search_rizin_fighter(resolved)
+        if not fighter:
+            fighter = await search_fighter(resolved)
+    return fighter
+
+
+@app.get("/api/fighter/{name}")
+async def get_fighter(name: str, org: str = "ufc") -> Fighter:
+    """Search for a fighter by name (supports Japanese, falls back to other org)."""
+    fighter = await _find_fighter(name, org)
 
     if not fighter:
         raise HTTPException(status_code=404, detail=f"選手 '{name}' が見つかりません")
@@ -169,15 +178,8 @@ async def event_fights(org: str, event_url: str):
 @app.get("/api/predict")
 async def predict_fight(fighter_a: str, fighter_b: str, org: str = "ufc") -> Prediction:
     """Predict the outcome of a fight between two fighters (supports Japanese)."""
-    name_a = _resolve_name(fighter_a)
-    name_b = _resolve_name(fighter_b)
-
-    if org.lower() == "ufc":
-        fa = await search_fighter(name_a)
-        fb = await search_fighter(name_b)
-    else:
-        fa = await search_rizin_fighter(name_a)
-        fb = await search_rizin_fighter(name_b)
+    fa = await _find_fighter(fighter_a, org)
+    fb = await _find_fighter(fighter_b, org)
 
     if not fa:
         raise HTTPException(status_code=404, detail=f"選手 '{fighter_a}' が見つかりません")

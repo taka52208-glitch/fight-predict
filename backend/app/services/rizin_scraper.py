@@ -78,6 +78,21 @@ async def suggest_rizin_fighters(query: str, limit: int = 10) -> list[dict]:
     return results[:limit]
 
 
+def _name_variants(name: str) -> list[str]:
+    """Generate romaji variants for Japanese name spellings (e.g., Ogikubo/Ougikubo)."""
+    variants = {name}
+    # Long vowel variants: Ou <-> O, Oh <-> O, Uu <-> U, Ei <-> E
+    for pair in [("ou", "o"), ("oh", "o"), ("uu", "u"), ("ei", "e"), ("aa", "a"), ("ii", "i")]:
+        new_set = set()
+        for v in variants:
+            new_set.add(v.replace(pair[0], pair[1]))
+            new_set.add(v.replace(pair[1], pair[0]))
+            new_set.add(v.replace(pair[0].capitalize(), pair[1].capitalize()))
+            new_set.add(v.replace(pair[1].capitalize(), pair[0].capitalize()))
+        variants.update(new_set)
+    return list(variants)
+
+
 async def search_fighter_sherdog(name: str) -> dict | None:
     """Search for a fighter on Sherdog and return their profile URL."""
     target = name.lower().strip()
@@ -87,6 +102,8 @@ async def search_fighter_sherdog(name: str) -> dict | None:
     parts = name.split()
     if len(parts) > 1:
         search_terms.append(parts[-1])
+        # Try first name too for romaji variants
+        search_terms.append(parts[0])
 
     for term in search_terms:
         links = await _search_sherdog_links(term)
@@ -94,6 +111,18 @@ async def search_fighter_sherdog(name: str) -> dict | None:
             found = item["name"].lower()
             if target == found or target in found or found in target:
                 return item
+
+    # Fallback: try romaji variants of the last name
+    if len(parts) > 1:
+        for variant in _name_variants(parts[-1]):
+            if variant == parts[-1]:
+                continue
+            links = await _search_sherdog_links(variant)
+            for item in links:
+                found = item["name"].lower()
+                # Match if first name matches
+                if parts[0].lower() in found:
+                    return item
 
     return None
 
