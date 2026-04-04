@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: fight-predict-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: ALLOWED_ORIGINS
+        # Vercel/Cloudflare Pagesのフロントエンド本番URLをカンマ区切りで指定
+        # 例: https://fight-predict.vercel.app,http://localhost:5173
+        sync: false
