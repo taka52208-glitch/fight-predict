@@ -2,9 +2,12 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v3完成（17項目スコアリング・精度大幅向上）
+- **ステータス**: v3完成＋本番デプロイ完了（スマホ公開中）
 - **進捗率**: 100%（v3）
 - **最終更新日**: 2026-04-05
+- **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
+- **APIエンドポイント**: https://fight-predict-api.onrender.com
+- **GitHub**: https://github.com/taka52208-glitch/fight-predict
 
 ## 2. 技術構成
 
@@ -67,7 +70,19 @@
 - [x] UFC/RIZIN自動クロス検索（UFCで見つからなければRIZIN、逆も同様）
 - [x] Sherdog名前表記揺れ対応（Ogikubo/Ougikubo等の長音変換フォールバック）
 
+### デプロイ対応（2026-04-05）
+- [x] フロントエンド: API URLを環境変数化（`VITE_API_BASE_URL`）
+- [x] バックエンド: CORS許可オリジンを環境変数化（`ALLOWED_ORIGINS`）
+- [x] requirements.txtにpykakasi追記（欠落修正）
+- [x] Dockerfile作成（Python 3.12-slim + lxml依存）
+- [x] render.yaml作成（Blueprint定義）
+- [x] Render（バックエンド）デプロイ完了 — `srv-d78k28vfte5s739573l0`
+- [x] Vercel（フロントエンド）デプロイ完了 — `prj_lguGRw9F6CoYrC0EVTcPssClWcID`
+- [x] CORS疎通確認（4つのVercelエイリアスを許可）
+
 ## 4. 起動方法
+
+### ローカル開発
 
 ```bash
 # バックエンド
@@ -83,11 +98,19 @@ npx vite --port 5173
 
 ※初回のRIZIN検索はキャッシュ構築のため30-60秒かかる（2回目以降は即座）
 
+### 本番（PC・スマホから共通アクセス）
+
+https://fight-predict-takas-projects-de61dd0f.vercel.app
+
+※Render無料プランのため、15分アクセスなしでスリープ→初回起動に30-60秒
+
 ## 5. 今後の改善候補
 
 - [ ] 予測精度の向上（機械学習モデル導入）
 - [ ] 過去の予測的中率トラッキング
 - [ ] 大会の全試合一括予測
 - [ ] SNS共有機能（X投稿用画像生成）
-- [ ] Vercel/Renderへのデプロイ
+- [x] ~~Vercel/Renderへのデプロイ~~（2026-04-05完了）
+- [ ] Render Starterプラン（$7/月）でスリープ回避
+- [ ] カスタムドメイン割当
 - [ ] 有料プラン（詳細分析・通知機能）
