@@ -93,6 +93,25 @@
 - **背景**: スマホ(iPhone/Safari)から「今日は検索できない」と報告があり、
   Renderコールドスタート(30-60秒)+ Safariのモバイル回線タイムアウトが原因と特定。
 
+### 選手情報の精度改善（2026-04-05追加）
+ユーザーから「選手情報が一部違う」との報告を受け、実データで6つの不具合を特定・修正。
+- [x] **UFC weight_class の誤表示を修正**（ufc_scraper.py）
+  - 生の体重（"248 lbs." 等）が入っていたため、体重→階級名に変換
+  - 例: Jon Jones `"248 lbs."` → `"Heavyweight"`
+- [x] **UFC last_fight_date への相手名混入を修正**（ufc_scraper.py）
+  - 例: `"MiocicNov 16, 2024"` → `"2024-11-16"`
+  - 月略称のみ許容する厳密な正規表現に変更
+- [x] **NC (No Contest) を引分として計上していた問題を修正**
+  - UFC・RIZIN両スクレイパーで NC を recent_fights から除外
+- [x] **RIZIN reach / last_fight_date を未取得だった問題を修正**
+  - Sherdog ページからの抽出処理を追加
+- [x] **RIZIN recent_fights の誤拾いを修正**（rizin_scraper.py）
+  - エキシビション戦・関連ニュースの "draw" 等まで拾っていた
+  - 例: 安保瑠輝也 `['L','D','D','D']` → `['L']`
+  - "FIGHT HISTORY - PRO" セクションに限定 + 行全体一致の正規表現に変更
+- [x] **扇久保博正の英語表記を統一**（rizin_cache.py）
+  - `"Ougikubo"` → `"Ogikubo"`（name_mapping.py との不整合を解消）
+
 ## 4. 起動方法
 
 ### ローカル開発
@@ -126,7 +145,9 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [ ] SNS共有機能（X投稿用画像生成）
 - [x] ~~Vercel/Renderへのデプロイ~~（2026-04-05完了）
 - [x] ~~コールドスタート対策~~（2026-04-05完了：GitHub Actions定期ping + フロント側リトライ）
+- [x] ~~選手情報の正確性改善~~（2026-04-05完了：weight_class/last_fight_date/NC計上/reach等の6バグ修正）
 - [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
-- [ ] 選手情報の正確性確認・修正（一部の選手で情報が違う報告あり、具体例待ち）
+- [ ] opponent_avg_win_rate キャッシュの定期更新（起動時ロードのみで長期的に陳腐化）
+- [ ] reach未取得選手（Sherdogに情報なし）の補完ロジック
 - [ ] カスタムドメイン割当
 - [ ] 有料プラン（詳細分析・通知機能）
