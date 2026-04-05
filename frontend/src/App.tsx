@@ -3,6 +3,51 @@ import "./App.css";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+// Renderコールドスタート対策: タイムアウト付きfetch + 1回リトライ
+async function fetchWithWakeup(
+  url: string,
+  opts: RequestInit = {},
+  onWaking?: (waking: boolean) => void
+): Promise<Response> {
+  const attempt = async (timeoutMs: number): Promise<Response> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      // 呼び出し元のsignalも尊重する
+      const signal = opts.signal
+        ? composeSignals(opts.signal, ctrl.signal)
+        : ctrl.signal;
+      return await fetch(url, { ...opts, signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  try {
+    return await attempt(8000);
+  } catch (e) {
+    // 呼び出し元がabortしたなら伝播
+    if (opts.signal?.aborted) throw e;
+    // 初回失敗 = コールドスタートの可能性 → 起動中メッセージ出してリトライ
+    onWaking?.(true);
+    try {
+      return await attempt(75000);
+    } finally {
+      onWaking?.(false);
+    }
+  }
+}
+
+function composeSignals(a: AbortSignal, b: AbortSignal): AbortSignal {
+  const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  if (a.aborted || b.aborted) ctrl.abort();
+  else {
+    a.addEventListener("abort", onAbort, { once: true });
+    b.addEventListener("abort", onAbort, { once: true });
+  }
+  return ctrl.signal;
+}
+
 type Fighter = {
   name: string;
   nickname: string;
@@ -58,12 +103,14 @@ function FighterInput({
   onSelect,
   placeholder,
   org,
+  onWaking,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSelect: (name: string) => void;
   placeholder: string;
   org: string;
+  onWaking?: (waking: boolean) => void;
 }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -93,9 +140,10 @@ function FighterInput({
       setLoading(true);
 
       try {
-        const res = await fetch(
+        const res = await fetchWithWakeup(
           `${API_BASE}/api/suggest?q=${encodeURIComponent(q)}&org=${org}`,
-          { signal: controller.signal }
+          { signal: controller.signal },
+          onWaking
         );
         if (res.ok) {
           const data = await res.json();
@@ -111,7 +159,7 @@ function FighterInput({
         }
       }
     },
-    [org]
+    [org, onWaking]
   );
 
   // Reset suggestions when org changes
@@ -280,6 +328,30 @@ function App() {
   const [events, setEvents] = useState<UpcomingEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"predict" | "events">("predict");
+  const [wakingUp, setWakingUp] = useState(false);
+
+  // マウント時にサーバーへウォームアップping (Renderコールドスタート対策)
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 90000);
+    let waking = false;
+    const slow = setTimeout(() => {
+      waking = true;
+      setWakingUp(true);
+    }, 3000);
+    fetch(`${API_BASE}/`, { signal: ctrl.signal })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        clearTimeout(slow);
+        if (waking) setWakingUp(false);
+      });
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(slow);
+      ctrl.abort();
+    };
+  }, []);
 
   const fetchPrediction = async () => {
     if (!fighterAName.trim() || !fighterBName.trim()) {
@@ -295,14 +367,20 @@ function App() {
 
     try {
       const [predRes, faRes, fbRes] = await Promise.all([
-        fetch(
-          `${API_BASE}/api/predict?fighter_a=${encodeURIComponent(fighterAName)}&fighter_b=${encodeURIComponent(fighterBName)}&org=${org}`
+        fetchWithWakeup(
+          `${API_BASE}/api/predict?fighter_a=${encodeURIComponent(fighterAName)}&fighter_b=${encodeURIComponent(fighterBName)}&org=${org}`,
+          {},
+          setWakingUp
         ),
-        fetch(
-          `${API_BASE}/api/fighter/${encodeURIComponent(fighterAName)}?org=${org}`
+        fetchWithWakeup(
+          `${API_BASE}/api/fighter/${encodeURIComponent(fighterAName)}?org=${org}`,
+          {},
+          setWakingUp
         ),
-        fetch(
-          `${API_BASE}/api/fighter/${encodeURIComponent(fighterBName)}?org=${org}`
+        fetchWithWakeup(
+          `${API_BASE}/api/fighter/${encodeURIComponent(fighterBName)}?org=${org}`,
+          {},
+          setWakingUp
         ),
       ]);
 
@@ -343,6 +421,12 @@ function App() {
         <h1>FIGHT PREDICT</h1>
         <p>格闘技試合予測ツール</p>
       </header>
+
+      {wakingUp && (
+        <div className="waking-banner">
+          サーバー起動中です…（初回アクセスは最大1分ほどかかります）
+        </div>
+      )}
 
       <nav className="tabs">
         <button
@@ -387,6 +471,7 @@ function App() {
                 onSelect={setFighterAName}
                 placeholder="選手A（例: Conor）"
                 org={org}
+                onWaking={setWakingUp}
               />
               <span className="vs">VS</span>
               <FighterInput
@@ -395,6 +480,7 @@ function App() {
                 onSelect={setFighterBName}
                 placeholder="選手B（例: Khabib）"
                 org={org}
+                onWaking={setWakingUp}
               />
             </div>
 

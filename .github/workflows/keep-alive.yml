@@ -1,0 +1,17 @@
+name: keep-alive
+
+# Renderの無料プランは15分アクセスがないとスリープする。
+# 10分ごとにpingすることでコールドスタート(30-60秒)を防ぎ、スマホから使えない問題を回避する。
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API
+        run: |
+          curl -fsS -m 90 -o /dev/null -w "status=%{http_code} time=%{time_total}s\n" \
+            https://fight-predict-api.onrender.com/
