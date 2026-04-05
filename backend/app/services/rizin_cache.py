@@ -27,7 +27,7 @@ MANUAL_JP_MAP = {
     "斎藤裕": "Yutaka Saito",
     "萩原京平": "Kyohei Hagiwara",
     "金太郎": "Kintaro",
-    "扇久保博正": "Hiromasa Ougikubo",
+    "扇久保博正": "Hiromasa Ogikubo",
     "元谷友貴": "Yuki Motoya",
     "石渡伸太郎": "Shintaro Ishiwatari",
     "矢地祐介": "Yusuke Yachi",

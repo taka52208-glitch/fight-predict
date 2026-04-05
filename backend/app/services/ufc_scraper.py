@@ -19,6 +19,32 @@ async def fetch_page(url: str, params: dict = None) -> str:
         return resp.text
 
 
+def _weight_to_class(weight_str: str) -> str:
+    """Convert raw weight (e.g. '155 lbs.') to UFC weight class name."""
+    import re
+    m = re.search(r"(\d+)", weight_str or "")
+    if not m:
+        return ""
+    w = int(m.group(1))
+    if w <= 115:
+        return "Strawweight"
+    if w <= 125:
+        return "Flyweight"
+    if w <= 135:
+        return "Bantamweight"
+    if w <= 145:
+        return "Featherweight"
+    if w <= 155:
+        return "Lightweight"
+    if w <= 170:
+        return "Welterweight"
+    if w <= 185:
+        return "Middleweight"
+    if w <= 205:
+        return "Light Heavyweight"
+    return "Heavyweight"
+
+
 def parse_fighter_row(row) -> dict:
     """Parse a single fighter row from the fighters list page."""
     cols = row.find_all("td")
@@ -48,7 +74,7 @@ def parse_fighter_row(row) -> dict:
         "name": name,
         "nickname": nickname,
         "height": height,
-        "weight_class": weight,
+        "weight_class": _weight_to_class(weight),
         "reach": reach,
         "stance": stance,
         "wins": int(wins) if wins.isdigit() else 0,
@@ -170,9 +196,10 @@ async def get_fighter_details(url: str) -> dict:
             result = "W"
         elif result_text in ("LOSS", "L"):
             result = "L"
-        elif result_text in ("DRAW", "D", "NC"):
+        elif result_text in ("DRAW", "D"):
             result = "D"
         else:
+            # NC (No Contest) / cancelled / unknown: skip entirely
             continue
 
         # First 5 fights → recent_fights
@@ -194,12 +221,16 @@ async def get_fighter_details(url: str) -> dict:
                     head_to_head[opponent_name]["losses"] += 1
 
         # Last fight date (first row = most recent)
-        if idx == 0 and len(cols) > 6:
+        if not last_fight_date and len(cols) > 6:
             event_text = cols[6].get_text(strip=True)
             # Format: "UFC 264: Poirier vs. McGregor 3Jul. 10, 2021"
-            # Date pattern is at the end
+            # Date pattern is at the end. Match only real month abbreviations
+            # to avoid capturing preceding text when there's no whitespace.
             import re as _re
-            m = _re.search(r"([A-Za-z]+\.?\s+\d+,?\s+\d{4})$", event_text)
+            m = _re.search(
+                r"((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2},?\s+\d{4})\s*$",
+                event_text,
+            )
             if m:
                 last_fight_date = _parse_fight_date(m.group(1))
 

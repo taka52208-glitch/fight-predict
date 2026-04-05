@@ -283,6 +283,7 @@ async def get_fighter_from_sherdog(url: str) -> Fighter | None:
     height = ""
     weight_class = ""
     age = 0
+    reach = ""
 
     age_match = re.search(r"AGE\s*(\d+)", page_text)
     if age_match:
@@ -292,29 +293,74 @@ async def get_fighter_from_sherdog(url: str) -> Fighter | None:
     if height_match:
         height = height_match.group(1).split("/")[0].strip()
 
-    weight_match = re.search(r"WEIGHT\s*([\d.]+\s*lbs)", page_text)
-    if weight_match:
-        weight_class = weight_match.group(1)
+    # Reach: "REACH 70.0" or "REACH 70\" / 178 cm"
+    reach_match = re.search(r"REACH\s*([\d.]+)\s*(?:\"|in)?", page_text, re.IGNORECASE)
+    if reach_match:
+        reach = f'{reach_match.group(1)}"'
 
     class_match = re.search(r"CLASS\s*(\w+)", page_text)
     if class_match:
         weight_class = class_match.group(1)
+    else:
+        weight_match = re.search(r"WEIGHT\s*([\d.]+\s*lbs)", page_text)
+        if weight_match:
+            weight_class = weight_match.group(1)
 
-    # Recent fights - parse from fight history text
+    # Recent fights - parse only from "FIGHT HISTORY - PRO" section,
+    # stopping before any EXHIBITION / AMATEUR / RELATED NEWS / REBOUT section.
     recent_fights = []
-    fight_history_match = re.search(r"FIGHT HISTORY.*?$", page_text, re.DOTALL)
+    history_text = ""
+    fight_history_match = re.search(
+        r"FIGHT HISTORY\s*-\s*PRO\b(.*?)(?:FIGHT HISTORY\s*-\s*(?:PRO\s+)?EXHIBITION|FIGHT HISTORY\s*-\s*AMATEUR|RELATED NEWS|$)",
+        page_text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not fight_history_match:
+        # Fallback: just "FIGHT HISTORY" (older layouts)
+        fight_history_match = re.search(
+            r"FIGHT HISTORY\b(.*?)(?:RELATED NEWS|$)",
+            page_text,
+            re.DOTALL | re.IGNORECASE,
+        )
     if fight_history_match:
-        history_text = fight_history_match.group()
-        # Find all "win" or "loss" or "draw" results
-        results = re.findall(r"\b(win|loss|draw|nc)\b", history_text, re.IGNORECASE)
-        for r in results[:5]:
+        history_text = fight_history_match.group(1)
+        # Match lines containing ONLY the result word (Sherdog renders each
+        # result on its own line). This avoids picking up "draw" from
+        # "Draw (Time Limit)" or news article prose.
+        results = re.findall(
+            r"^\s*(win|loss|draw|nc)\s*$",
+            history_text,
+            re.IGNORECASE | re.MULTILINE,
+        )
+        for r in results:
+            if len(recent_fights) >= 5:
+                break
             r_lower = r.lower()
             if r_lower == "win":
                 recent_fights.append("W")
             elif r_lower == "loss":
                 recent_fights.append("L")
-            else:
+            elif r_lower == "draw":
                 recent_fights.append("D")
+            # skip nc (No Contest) — not a competitive result
+
+    # Last fight date: Sherdog shows dates like "Dec / 31 / 2023" in history
+    last_fight_date = ""
+    if history_text:
+        date_match = re.search(
+            r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*/\s*(\d{1,2})\s*/\s*(\d{4})",
+            history_text,
+        )
+        if date_match:
+            from datetime import datetime
+            try:
+                d = datetime.strptime(
+                    f"{date_match.group(1)} {date_match.group(2)} {date_match.group(3)}",
+                    "%b %d %Y",
+                )
+                last_fight_date = d.strftime("%Y-%m-%d")
+            except ValueError:
+                last_fight_date = ""
 
     # Calculate streak
     streak = 0
@@ -336,6 +382,15 @@ async def get_fighter_from_sherdog(url: str) -> Fighter | None:
     total_fights = wins + losses + draws
     estimated = _estimate_stats(wins, losses, ko_wins, sub_wins, dec_wins, total_fights, height)
 
+    # Parse reach to inches
+    reach_inches = 0.0
+    reach_num = re.search(r"([\d.]+)", reach)
+    if reach_num:
+        try:
+            reach_inches = float(reach_num.group(1))
+        except ValueError:
+            reach_inches = 0.0
+
     return Fighter(
         name=name,
         nickname=nickname,
@@ -347,11 +402,14 @@ async def get_fighter_from_sherdog(url: str) -> Fighter | None:
         sub_wins=sub_wins,
         dec_wins=dec_wins,
         height=height,
+        reach=reach,
         weight_class=weight_class,
         age=age,
         organization="RIZIN",
         recent_fights=recent_fights,
         recent_win_streak=streak,
+        last_fight_date=last_fight_date,
+        reach_inches=reach_inches,
         height_inches=estimated["height_inches"],
         style=estimated["style"],
         sig_strikes_landed_per_min=estimated["sig_strikes_landed_per_min"],
