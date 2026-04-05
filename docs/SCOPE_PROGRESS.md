@@ -2,7 +2,7 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v3完成＋本番デプロイ完了（スマホ公開中）
+- **ステータス**: v3完成＋本番デプロイ完了＋コールドスタート対策済み（スマホ公開中）
 - **進捗率**: 100%（v3）
 - **最終更新日**: 2026-04-05
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
@@ -80,6 +80,19 @@
 - [x] Vercel（フロントエンド）デプロイ完了 — `prj_lguGRw9F6CoYrC0EVTcPssClWcID`
 - [x] CORS疎通確認（4つのVercelエイリアスを許可）
 
+### コールドスタート対策（2026-04-05追加）
+- [x] **GitHub Actionsで10分ごとにAPIへping**（`.github/workflows/keep-alive.yml`）
+  - Render無料プランの15分スリープを回避し、そもそも寝かせない
+- [x] **フロント側 マウント時ウォームアップping**
+  - アプリ起動直後に `/` を叩いてサーバーを温める
+- [x] **タイムアウト付きfetch + 自動リトライ**（`fetchWithWakeup`）
+  - 初回8秒で返らなければ最大75秒まで延長してリトライ
+  - suggest / predict / fighter 全エンドポイントに適用
+- [x] **「サーバー起動中…」バナー表示**
+  - 3秒以上返らない場合に黄色の脈動バナーで状況をユーザーに伝える
+- **背景**: スマホ(iPhone/Safari)から「今日は検索できない」と報告があり、
+  Renderコールドスタート(30-60秒)+ Safariのモバイル回線タイムアウトが原因と特定。
+
 ## 4. 起動方法
 
 ### ローカル開発
@@ -102,7 +115,8 @@ npx vite --port 5173
 
 https://fight-predict-takas-projects-de61dd0f.vercel.app
 
-※Render無料プランのため、15分アクセスなしでスリープ→初回起動に30-60秒
+※Render無料プランのため15分アクセスなしでスリープ→初回起動に30-60秒
+　（GitHub Actionsで10分ごとにpingを入れているため通常は発生しない）
 
 ## 5. 今後の改善候補
 
@@ -111,6 +125,8 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [ ] 大会の全試合一括予測
 - [ ] SNS共有機能（X投稿用画像生成）
 - [x] ~~Vercel/Renderへのデプロイ~~（2026-04-05完了）
-- [ ] Render Starterプラン（$7/月）でスリープ回避
+- [x] ~~コールドスタート対策~~（2026-04-05完了：GitHub Actions定期ping + フロント側リトライ）
+- [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
+- [ ] 選手情報の正確性確認・修正（一部の選手で情報が違う報告あり、具体例待ち）
 - [ ] カスタムドメイン割当
 - [ ] 有料プラン（詳細分析・通知機能）
