@@ -155,18 +155,37 @@ async def search_fighter_sherdog(name: str, prefer_rizin: bool = False) -> dict 
     if not parts:
         return None
 
-    # Try full name first, then last name
+    # Build search terms: full name, reversed order, first name, last name
     search_terms = [target]
     if len(parts) > 1:
-        search_terms.append(parts[-1])
+        reversed_name = " ".join(reversed(parts))
+        search_terms.append(reversed_name)   # "Goto Shinryusei" ↔ "Shinryusei Goto"
+        search_terms.append(parts[0])        # first name / ring name
+        search_terms.append(parts[-1])       # last name
+    # Deduplicate while preserving order
+    seen_terms = set()
+    unique_terms = []
+    for t in search_terms:
+        if t.lower() not in seen_terms:
+            seen_terms.add(t.lower())
+            unique_terms.append(t)
+    search_terms = unique_terms
 
     # Collect all candidates with their scores
     candidates: list[tuple[int, dict]] = []
+    seen_urls = set()
 
     for term in search_terms:
         links = await _search_sherdog_links(term)
         for item in links:
+            if item["url"] in seen_urls:
+                continue
+            seen_urls.add(item["url"])
+            # Score against both original and reversed name
             score = _name_match_score(target, item["name"])
+            if len(parts) > 1:
+                rev_score = _name_match_score(reversed_name, item["name"])
+                score = max(score, rev_score)
             if score > 0:
                 candidates.append((score, item))
 
@@ -177,6 +196,9 @@ async def search_fighter_sherdog(name: str, prefer_rizin: bool = False) -> dict 
                 continue
             links = await _search_sherdog_links(variant)
             for item in links:
+                if item["url"] in seen_urls:
+                    continue
+                seen_urls.add(item["url"])
                 score = _name_match_score(target, item["name"])
                 if score > 0:
                     candidates.append((score, item))
