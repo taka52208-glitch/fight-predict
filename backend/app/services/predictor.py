@@ -18,17 +18,28 @@ def _sigmoid_spread(prob: float, strength: float = 2.0) -> float:
 
 
 def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -> Prediction:
-    """Advanced prediction using weighted multi-factor analysis (v3: 17 factors)."""
+    """Advanced prediction using weighted multi-factor analysis (v3: 17 factors).
+
+    When either fighter has estimated stats (RIZIN), stat-based factors are
+    weighted down and record-based factors are weighted up to compensate.
+    """
 
     scores = {"a": 0.0, "b": 0.0}
     factors = []
+
+    # If either fighter has estimated stats, reduce stat weights and boost record weights
+    either_estimated = fighter_a.is_estimated or fighter_b.is_estimated
+    # stat_scale < 1.0 reduces stat factor weights; record_boost > 1.0 increases record weights
+    stat_scale = 0.6 if either_estimated else 1.0
+    record_boost = 1.4 if either_estimated else 1.0
 
     # ===== 1. Win Rate (weight: 12%) =====
     wr_a = fighter_a.win_rate
     wr_b = fighter_b.win_rate
     ra, rb = _safe_ratio(wr_a, wr_b)
-    scores["a"] += ra * 12
-    scores["b"] += rb * 12
+    w_wr = 12 * record_boost
+    scores["a"] += ra * w_wr
+    scores["b"] += rb * w_wr
     if abs(wr_a - wr_b) > 0.1:
         better = fighter_a.name if wr_a > wr_b else fighter_b.name
         factors.append(f"勝率: {better}が優位 ({max(wr_a, wr_b):.0%} vs {min(wr_a, wr_b):.0%})")
@@ -37,8 +48,9 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     form_a = fighter_a.recent_form
     form_b = fighter_b.recent_form
     ra, rb = _safe_ratio(form_a, form_b)
-    scores["a"] += ra * 12
-    scores["b"] += rb * 12
+    w_rf = 12 * record_boost
+    scores["a"] += ra * w_rf
+    scores["b"] += rb * w_rf
 
     streak_a = fighter_a.recent_win_streak
     streak_b = fighter_b.recent_win_streak
@@ -54,10 +66,11 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     # ===== 3. Striking offense (weight: 10%) =====
     slpm_a = fighter_a.sig_strikes_landed_per_min
     slpm_b = fighter_b.sig_strikes_landed_per_min
+    w_so = 10 * stat_scale
     if slpm_a + slpm_b > 0:
         ra, rb = _safe_ratio(slpm_a, slpm_b)
-        scores["a"] += ra * 10
-        scores["b"] += rb * 10
+        scores["a"] += ra * w_so
+        scores["b"] += rb * w_so
         if abs(slpm_a - slpm_b) > 1.5:
             better = fighter_a.name if slpm_a > slpm_b else fighter_b.name
             factors.append(f"打撃力: {better}が優位 ({max(slpm_a, slpm_b):.1f} vs {min(slpm_a, slpm_b):.1f} SLpM)")
@@ -65,18 +78,20 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     # ===== 4. Striking accuracy (weight: 6%) =====
     acc_a = fighter_a.sig_strike_accuracy
     acc_b = fighter_b.sig_strike_accuracy
+    w_sa = 6 * stat_scale
     if acc_a + acc_b > 0:
         ra, rb = _safe_ratio(acc_a, acc_b)
-        scores["a"] += ra * 6
-        scores["b"] += rb * 6
+        scores["a"] += ra * w_sa
+        scores["b"] += rb * w_sa
 
     # ===== 5. Strike defense (weight: 8%) =====
     sdef_a = fighter_a.sig_strike_defense
     sdef_b = fighter_b.sig_strike_defense
+    w_sd = 8 * stat_scale
     if sdef_a + sdef_b > 0:
         ra, rb = _safe_ratio(sdef_a, sdef_b)
-        scores["a"] += ra * 8
-        scores["b"] += rb * 8
+        scores["a"] += ra * w_sd
+        scores["b"] += rb * w_sd
         if abs(sdef_a - sdef_b) > 0.1:
             better = fighter_a.name if sdef_a > sdef_b else fighter_b.name
             factors.append(f"打撃防御: {better}が優位 ({max(sdef_a, sdef_b):.0%} vs {min(sdef_a, sdef_b):.0%})")
@@ -85,19 +100,21 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     # Lower is better - invert for scoring
     sapm_a = fighter_a.sig_strikes_absorbed_per_min
     sapm_b = fighter_b.sig_strikes_absorbed_per_min
+    w_da = 5 * stat_scale
     if sapm_a + sapm_b > 0:
         # Invert: lower absorption = better
         ra, rb = _safe_ratio(sapm_b, sapm_a)
-        scores["a"] += ra * 5
-        scores["b"] += rb * 5
+        scores["a"] += ra * w_da
+        scores["b"] += rb * w_da
 
     # ===== 7. Takedown offense (weight: 6%) =====
     td_a = fighter_a.takedown_avg
     td_b = fighter_b.takedown_avg
+    w_to = 6 * stat_scale
     if td_a + td_b > 0:
         ra, rb = _safe_ratio(td_a, td_b)
-        scores["a"] += ra * 6
-        scores["b"] += rb * 6
+        scores["a"] += ra * w_to
+        scores["b"] += rb * w_to
         if abs(td_a - td_b) > 1.0:
             better = fighter_a.name if td_a > td_b else fighter_b.name
             factors.append(f"テイクダウン: {better}が優位 ({max(td_a, td_b):.1f} vs {min(td_a, td_b):.1f}/試合)")
@@ -105,18 +122,20 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     # ===== 8. Takedown defense (weight: 5%) =====
     tdd_a = fighter_a.takedown_defense
     tdd_b = fighter_b.takedown_defense
+    w_td = 5 * stat_scale
     if tdd_a + tdd_b > 0:
         ra, rb = _safe_ratio(tdd_a, tdd_b)
-        scores["a"] += ra * 5
-        scores["b"] += rb * 5
+        scores["a"] += ra * w_td
+        scores["b"] += rb * w_td
 
     # ===== 9. Submission game (weight: 4%) =====
     sub_a = fighter_a.submission_avg
     sub_b = fighter_b.submission_avg
+    w_sg = 4 * stat_scale
     if sub_a + sub_b > 0:
         ra, rb = _safe_ratio(sub_a, sub_b)
-        scores["a"] += ra * 4
-        scores["b"] += rb * 4
+        scores["a"] += ra * w_sg
+        scores["b"] += rb * w_sg
         if abs(sub_a - sub_b) > 0.5:
             better = fighter_a.name if sub_a > sub_b else fighter_b.name
             factors.append(f"サブミッション: {better}が優位 ({max(sub_a, sub_b):.1f} vs {min(sub_a, sub_b):.1f}/試合)")
@@ -124,10 +143,11 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     # ===== 10. Finish rate (weight: 4%) =====
     fr_a = fighter_a.finish_rate
     fr_b = fighter_b.finish_rate
+    w_fr = 4 * record_boost
     if fr_a + fr_b > 0:
         ra, rb = _safe_ratio(fr_a, fr_b)
-        scores["a"] += ra * 4
-        scores["b"] += rb * 4
+        scores["a"] += ra * w_fr
+        scores["b"] += rb * w_fr
 
     # ===== 11. Style matchup bonus (weight: 4%) =====
     style_a = fighter_a.style
@@ -231,10 +251,7 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     # ===== 15. Head-to-Head record (weight: 4%) =====
     h2h_a = fighter_a.head_to_head.get(fighter_b.name, {})
     h2h_b = fighter_b.head_to_head.get(fighter_a.name, {})
-    # Combine both perspectives (should be consistent but can differ)
-    a_wins_over_b = h2h_a.get("wins", 0) + h2h_b.get("losses", 0)
-    b_wins_over_a = h2h_a.get("losses", 0) + h2h_b.get("wins", 0)
-    # Deduplicate (each fight counted once per fighter)
+    # Deduplicate: each fight is counted from both perspectives, take the max
     a_wins_over_b = max(h2h_a.get("wins", 0), h2h_b.get("losses", 0))
     b_wins_over_a = max(h2h_a.get("losses", 0), h2h_b.get("wins", 0))
 
@@ -320,7 +337,8 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     # ===== Determine confidence =====
     diff = abs(prob_a - prob_b)
     total_fights = (fighter_a.wins + fighter_a.losses + fighter_b.wins + fighter_b.losses)
-    has_stats = fighter_a.sig_strikes_landed_per_min > 0 and fighter_b.sig_strikes_landed_per_min > 0
+    has_stats = (fighter_a.sig_strikes_landed_per_min > 0 and fighter_b.sig_strikes_landed_per_min > 0
+                 and not either_estimated)
     has_age = fighter_a.age > 0 and fighter_b.age > 0
     has_sos = fighter_a.opponent_avg_win_rate >= 0 and fighter_b.opponent_avg_win_rate >= 0
 
@@ -343,6 +361,17 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
 
     # ===== Predict fight method =====
     method = _predict_method(fighter_a, fighter_b)
+
+    if either_estimated:
+        if fighter_a.is_estimated and fighter_b.is_estimated:
+            factors.append("※ 両選手のスタッツは戦績から推定（実データなし）。勝率・戦績を重視した予測です")
+        elif fighter_a.is_estimated:
+            factors.append(f"※ {fighter_a.name}のスタッツは戦績から推定。勝率・戦績を重視した予測です")
+        else:
+            factors.append(f"※ {fighter_b.name}のスタッツは戦績から推定。勝率・戦績を重視した予測です")
+        # Lower confidence when using estimated data
+        if confidence == "HIGH":
+            confidence = "MEDIUM"
 
     if not factors:
         factors.append("両選手のスタッツが拮抗しています")

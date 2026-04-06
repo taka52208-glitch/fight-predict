@@ -2,9 +2,9 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v3完成＋本番デプロイ完了＋コールドスタート対策済み（スマホ公開中）
-- **進捗率**: 100%（v3）
-- **最終更新日**: 2026-04-05
+- **ステータス**: v3完成＋セキュリティ・品質・精度改善完了＋マネタイズ準備中（スマホ公開中）
+- **進捗率**: 100%（v3）／マネタイズ進行中
+- **最終更新日**: 2026-04-06
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
 - **APIエンドポイント**: https://fight-predict-api.onrender.com
 - **GitHub**: https://github.com/taka52208-glitch/fight-predict
@@ -112,6 +112,110 @@
 - [x] **扇久保博正の英語表記を統一**（rizin_cache.py）
   - `"Ougikubo"` → `"Ogikubo"`（name_mapping.py との不整合を解消）
 
+### セキュリティ・品質改善（2026-04-06追加）
+全コードを監査し、22件の問題を一括修正。
+
+#### セキュリティ修正（重大5件）
+- [x] **SSRF脆弱性を修正**（main.py）
+  - `event_url`パラメータにドメインホワイトリスト検証を追加（ufcstats.com/sherdog.comのみ許可）
+- [x] **CORSデフォルトを全開放→localhost限定に変更**（main.py）
+  - `ALLOWED_ORIGINS`未設定時に`*`ではなく`localhost`のみ許可
+- [x] **HTTP→HTTPSに変更**（ufc_scraper.py）
+  - UFCstats.comへの全3URLをHTTPS化（MITM攻撃対策）
+- [x] **キャッシュ競合条件を修正**（ufc_scraper.py / rizin_cache.py）
+  - `asyncio.Lock()`を追加し、複数リクエストによる重複キャッシュ構築を防止
+- [x] **起動時キャッシュを`await`で完了待ち**（main.py）
+  - `create_task`→`asyncio.gather`に変更、初回リクエストの空結果を解消
+
+#### 安定性・エラー処理（6件）
+- [x] **大会一覧にも`fetchWithWakeup`を適用**（App.tsx）
+  - コールドスタート時のハングを防止
+- [x] **名前の部分一致を最長一致に改善**（main.py）
+  - 「太郎」で別人がヒットする誤爆を防止
+- [x] **`search_fighter`にtry-except追加**（ufc_scraper.py）
+  - ネットワーク障害時のエンドポイントクラッシュを防止
+- [x] **例外ログを追加**（全バックエンドファイル）
+  - `except Exception: continue`→具体的例外＋`logger.warning`で原因特定可能に
+- [x] **Fighterモデルの`age`フィールド重複を削除**（fighter.py）
+- [x] **入力長の上限を100文字に制限**（main.py）
+
+#### パフォーマンス改善（2件）
+- [x] **UFCキャッシュ構築を並列化**（ufc_scraper.py）
+  - A-Z 26リクエストを直列→`asyncio.gather`で並列実行（起動時間を大幅短縮）
+- [x] **H2H計算のデッドコードを削除**（predictor.py）
+
+#### UI/UX改善（5件）
+- [x] **予測ボタン連打防止**（App.tsx）
+- [x] **キーボード操作対応**（App.tsx）
+  - オートコンプリートを矢印キー/Enter/Escapeで操作可能に
+- [x] **確率バー表示崩れ修正**（App.tsx / App.css）
+  - 5% vs 95%のような極端な割合でもテキストがはみ出さないよう修正
+- [x] **スタッツNaN表示防止**（App.tsx）
+  - APIがnullを返した場合のガードを追加
+- [x] **ネットワークエラー時のメッセージ改善**（App.tsx）
+
+#### アクセシビリティ改善（4件）
+- [x] **ARIA属性を追加**（App.tsx）
+  - `role="tablist"` / `aria-selected` / `role="alert"` / `aria-autocomplete` 等
+- [x] **スクリーンリーダー用ラベル**（App.tsx / App.css）
+  - `sr-only`クラスによる非表示ラベルを追加
+- [x] **プレースホルダーのコントラスト改善**（App.css）
+  - `#555`→`#777`でWCAGコントラスト基準に近づける
+- [x] **`org`の型を厳密化**（App.tsx）
+  - `string`→`"ufc" | "rizin"`に変更、unsafe castを除去
+
+#### その他（2件）
+- [x] **User-Agentを正直な識別子に変更**（ufc_scraper.py / rizin_scraper.py / rizin_cache.py）
+  - ブラウザ偽装→`fight-predict-bot/1.0`
+- [x] **keep-alive.ymlのAPI URLを環境変数化**（keep-alive.yml）
+  - 公開リポジトリでの本番URL露出を軽減
+
+### 選手検索精度・予測精度の改善（2026-04-06追加）
+ユーザーから「伊藤祐樹を入力すると伊藤博之が出る」との報告を受け、名前マッチングと予測精度を全面改善。
+
+#### 選手検索の厳密化（誤ヒット防止）
+- [x] **Sherdog検索をスコアリング方式に変更**（rizin_scraper.py）
+  - 旧: `"ito" in "hiroyuki ito"` → 部分一致で別人にヒット
+  - 新: 姓名の全パーツ一致=90点、単語一致=70点、40点未満は除外
+  - 最高スコアの選手を返す
+- [x] **全検索を部分文字列→単語単位一致に変更**（ufc_scraper.py / rizin_scraper.py）
+  - 根本原因: `"yuki" in "hiroyuki ito"` → True（"yuki"が"hiroYUKI"の部分文字列）
+  - 修正: `"yuki" in ["hiroyuki", "ito"]` → False（単語リストで完全一致）
+  - UFC検索（ufc_scraper.py）: `tp in name_lower`→`tp in name_words`に変更
+  - Sherdogフィルタ（rizin_scraper.py）: `query not in name`→単語レベルのフィルタに変更
+  - → 「伊藤祐樹(Ito Yuki)」で「Hiroyuki Ito」に絶対ヒットしなくなる
+
+#### 予測精度の改善
+- [x] **RIZIN推定スタッツの精度向上**（rizin_scraper.py）
+  - 勝利方法の合計>100%時に正規化する処理を追加
+  - `sub_avg`を「サブ率×2」→「サブ勝利数/総試合数×1.5」に修正（試合あたり頻度）
+  - 各推定値のクランプ範囲を現実的な値に調整
+- [x] **推定データ使用時の重み調整**（predictor.py）
+  - `is_estimated`フラグをFighterモデルに追加（fighter.py）
+  - RIZIN選手の推定スタッツ系ファクターの重みを60%に縮小
+  - 代わりに戦績系ファクター（勝率・連勝・フィニッシュ率）の重みを140%に拡大
+  - → 推定値に過度に依存せず、確実なデータ（戦績）を重視する予測に
+- [x] **推定データ時の信頼度を自動ダウングレード**（predictor.py）
+  - HIGH→MEDIUMに自動調整、信頼度判定で推定データを実データとカウントしない
+- [x] **予測根拠に推定値の注記を追加**（predictor.py）
+  - 「※スタッツは戦績から推定」をユーザーに明示
+- [x] **年齢バウンドチェック追加**（ufc_scraper.py）
+  - 15〜60歳の範囲外は0（不明）として扱う → データ入力エラーによる誤ペナルティを防止
+
+### マネタイズ対応（2026-04-06追加）
+- [x] **アフィリエイトリンクUIの実装**（App.tsx / App.css）
+  - 予測結果の下に配信サービスへの誘導バナーを追加
+  - UFC選択時 → U-NEXT、RIZIN選択時 → ABEMA を動的に切替
+  - ゴールドグラデーション背景＋ホバーアニメーション付きデザイン
+  - フッターにも常設リンクを設置
+- [x] **ASP（afb）への会員登録完了**（審査待ち）
+  - afbを選定（U-NEXT・ABEMA両方を提携可能、報酬額が最高水準）
+  - A8.netはU-NEXTの新規提携が終了していたため代替
+- [ ] **afb審査承認待ち**（数日〜1週間）
+- [ ] **U-NEXT提携申請**（afb承認後）
+- [ ] **ABEMA提携申請**（afb承認後）
+- [ ] **アフィリエイトURLの本番設置**（提携承認後にコード差替え）
+
 ## 4. 起動方法
 
 ### ローカル開発
@@ -139,6 +243,8 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 
 ## 5. 今後の改善候補
 
+- [x] ~~セキュリティ・品質改善~~（2026-04-06完了：SSRF/CORS/HTTPS/競合条件等22件修正）
+- [x] ~~選手検索精度・予測精度改善~~（2026-04-06完了：名前マッチング厳密化＋推定データ重み調整）
 - [ ] 予測精度の向上（機械学習モデル導入）
 - [ ] 過去の予測的中率トラッキング
 - [ ] 大会の全試合一括予測
@@ -151,3 +257,5 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [ ] reach未取得選手（Sherdogに情報なし）の補完ロジック
 - [ ] カスタムドメイン割当
 - [ ] 有料プラン（詳細分析・通知機能）
+- [ ] X（Twitter）Bot化で集客（大会前に予測を自動ツイート）
+- [ ] note/Brainで大会予測レポート販売（1大会300〜500円）

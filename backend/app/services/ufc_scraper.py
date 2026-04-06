@@ -1,11 +1,15 @@
+import asyncio
+import logging
 import httpx
 from bs4 import BeautifulSoup
 
 from app.models.fighter import Fighter, Fight
 
-BASE_URL = "http://ufcstats.com/statistics/fighters"
-EVENT_URL = "http://ufcstats.com/statistics/events/completed"
-UPCOMING_URL = "http://ufcstats.com/statistics/events/upcoming"
+logger = logging.getLogger(__name__)
+
+BASE_URL = "https://ufcstats.com/statistics/fighters"
+EVENT_URL = "https://ufcstats.com/statistics/events/completed"
+UPCOMING_URL = "https://ufcstats.com/statistics/events/upcoming"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -94,7 +98,10 @@ def _parse_age_from_dob(dob_str: str) -> int:
             dob = datetime.strptime(dob_str.strip(), fmt)
             today = datetime.today()
             age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-            return age
+            # Sanity check: MMA fighters are typically 18-55
+            if 15 <= age <= 60:
+                return age
+            return 0
         except ValueError:
             continue
     return 0
@@ -299,29 +306,45 @@ def _determine_style(fighter_data: dict) -> str:
 # In-memory cache of all fighters for fast suggestions
 _fighter_cache: list[dict] = []
 _cache_loaded = False
+_cache_lock = asyncio.Lock()
+
+
+async def _fetch_char_page(char: str) -> list[dict]:
+    """Fetch and parse fighters for a single character page."""
+    try:
+        html = await fetch_page(BASE_URL, params={"char": char, "page": "all"})
+        soup = BeautifulSoup(html, "lxml")
+        rows = soup.find_all("tr", class_="b-statistics__table-row")
+        results = []
+        for row in rows:
+            data = parse_fighter_row(row)
+            if data:
+                results.append(data)
+        return results
+    except Exception as e:
+        logger.warning(f"Failed to load UFC fighters for char '{char}': {e}")
+        return []
 
 
 async def load_fighter_cache():
     """Load all UFC fighters into memory for fast search."""
     global _fighter_cache, _cache_loaded
-    if _cache_loaded:
-        return
 
-    all_fighters = []
-    for char in "abcdefghijklmnopqrstuvwxyz":
-        try:
-            html = await fetch_page(BASE_URL, params={"char": char, "page": "all"})
-            soup = BeautifulSoup(html, "lxml")
-            rows = soup.find_all("tr", class_="b-statistics__table-row")
-            for row in rows:
-                data = parse_fighter_row(row)
-                if data:
-                    all_fighters.append(data)
-        except Exception:
-            continue
+    async with _cache_lock:
+        if _cache_loaded:
+            return
 
-    _fighter_cache = all_fighters
-    _cache_loaded = True
+        # Parallel fetch for all 26 character pages
+        tasks = [_fetch_char_page(char) for char in "abcdefghijklmnopqrstuvwxyz"]
+        results = await asyncio.gather(*tasks)
+
+        all_fighters = []
+        for page_fighters in results:
+            all_fighters.extend(page_fighters)
+
+        _fighter_cache = all_fighters
+        _cache_loaded = True
+        logger.info(f"UFC fighter cache loaded: {len(all_fighters)} fighters")
 
 
 async def suggest_fighters(query: str, limit: int = 10) -> list[dict]:
@@ -366,7 +389,11 @@ async def search_fighter(name: str) -> Fighter | None:
         chars_to_try.add(parts[-1][0].lower())  # last name initial
 
     for char in chars_to_try:
-        html = await fetch_page(BASE_URL, params={"char": char, "page": "all"})
+        try:
+            html = await fetch_page(BASE_URL, params={"char": char, "page": "all"})
+        except Exception as e:
+            logger.warning(f"Failed to fetch UFC page for char '{char}': {e}")
+            continue
         soup = BeautifulSoup(html, "lxml")
         rows = soup.find_all("tr", class_="b-statistics__table-row")
 
@@ -376,8 +403,16 @@ async def search_fighter(name: str) -> Fighter | None:
                 continue
 
             name_lower = data["name"].lower()
-            # Exact match or partial match
-            if name_lower == target or target in name_lower:
+            name_words = name_lower.split()
+            target_parts = target.split()
+            is_exact = name_lower == target
+            # Word-level match: each target part must match a whole word in the fighter name
+            is_all_parts = (
+                all(tp in name_words for tp in target_parts)
+                if len(target_parts) >= 2
+                else target_parts[0] in name_words
+            )
+            if is_exact or is_all_parts:
                 detail_url = data.pop("detail_url", "")
 
                 fighter_data = {

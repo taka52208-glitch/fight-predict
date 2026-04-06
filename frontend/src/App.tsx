@@ -102,6 +102,7 @@ function FighterInput({
   onChange,
   onSelect,
   placeholder,
+  label,
   org,
   onWaking,
 }: {
@@ -109,25 +110,24 @@ function FighterInput({
   onChange: (v: string) => void;
   onSelect: (name: string) => void;
   placeholder: string;
+  label: string;
   org: string;
   onWaking?: (waking: boolean) => void;
 }) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchSuggestions = useCallback(
     async (q: string) => {
-      // Cancel any in-flight request
       if (abortRef.current) {
         abortRef.current.abort();
       }
 
-      // Japanese characters are meaningful even at 1 char
       const isJapanese = /[\u3000-\u9fff\uff00-\uffef]/.test(q);
       if (q.length < (isJapanese ? 1 : 2)) {
         setSuggestions([]);
@@ -149,6 +149,7 @@ function FighterInput({
           const data = await res.json();
           setSuggestions(data);
           setShowSuggestions(data.length > 0);
+          setActiveIndex(-1);
         }
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return;
@@ -161,6 +162,14 @@ function FighterInput({
     },
     [org, onWaking]
   );
+
+  // Cleanup abort on unmount
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   // Reset suggestions when org changes
   useEffect(() => {
@@ -182,7 +191,6 @@ function FighterInput({
       return;
     }
 
-    // Shorter delay for Japanese input
     const isJapanese = /[\u3000-\u9fff\uff00-\uffef]/.test(v);
     timerRef.current = setTimeout(() => fetchSuggestions(v), isJapanese ? 150 : 200);
   };
@@ -191,6 +199,26 @@ function FighterInput({
     onChange(name);
     onSelect(name);
     setShowSuggestions(false);
+    setActiveIndex(-1);
+  };
+
+  // Keyboard navigation for suggestions
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+    } else if (e.key === "Enter" && activeIndex >= 0) {
+      e.preventDefault();
+      handleSelect(suggestions[activeIndex].name);
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+      setActiveIndex(-1);
+    }
   };
 
   useEffect(() => {
@@ -205,20 +233,27 @@ function FighterInput({
 
   return (
     <div className="fighter-input-wrapper" ref={wrapperRef}>
+      <label className="sr-only">{label}</label>
       <input
         type="text"
         placeholder={placeholder}
         value={value}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
         onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+        aria-expanded={showSuggestions}
+        aria-autocomplete="list"
+        aria-label={label}
       />
-      {loading && <span className="input-spinner" />}
+      {loading && <span className="input-spinner" aria-label="検索中" />}
       {showSuggestions && suggestions.length > 0 && (
-        <div className="suggestions">
+        <div className="suggestions" role="listbox">
           {suggestions.map((s, i) => (
             <div
-              key={i}
-              className="suggestion-item"
+              key={`${s.name}-${i}`}
+              className={`suggestion-item${i === activeIndex ? " active" : ""}`}
+              role="option"
+              aria-selected={i === activeIndex}
               onClick={() => handleSelect(s.name)}
             >
               <span className="suggestion-name">{s.name}</span>
@@ -254,10 +289,16 @@ function ProbBar({
         <span className="fighter-b-label">{nameB}</span>
       </div>
       <div className="prob-bar">
-        <div className="prob-bar-a" style={{ width: `${pctA}%` }}>
+        <div
+          className="prob-bar-a"
+          style={{ width: `${Math.max(pctA, 8)}%` }}
+        >
           {pctA}%
         </div>
-        <div className="prob-bar-b" style={{ width: `${pctB}%` }}>
+        <div
+          className="prob-bar-b"
+          style={{ width: `${Math.max(pctB, 8)}%` }}
+        >
           {pctB}%
         </div>
       </div>
@@ -276,10 +317,12 @@ function StatCompare({
   valB: number;
   format?: "number" | "percent";
 }) {
-  const displayA = format === "percent" ? `${Math.round(valA * 100)}%` : valA.toFixed(1);
-  const displayB = format === "percent" ? `${Math.round(valB * 100)}%` : valB.toFixed(1);
-  const betterA = valA > valB;
-  const betterB = valB > valA;
+  const safeA = valA ?? 0;
+  const safeB = valB ?? 0;
+  const displayA = format === "percent" ? `${Math.round(safeA * 100)}%` : safeA.toFixed(1);
+  const displayB = format === "percent" ? `${Math.round(safeB * 100)}%` : safeB.toFixed(1);
+  const betterA = safeA > safeB;
+  const betterB = safeB > safeA;
 
   return (
     <div className="stat-row">
@@ -316,10 +359,43 @@ function FighterCard({ fighter }: { fighter: Fighter }) {
   );
 }
 
+// アフィリエイトリンク設定（実際のアフィリエイトURLに差し替えてください）
+const AFFILIATE_LINKS = {
+  ufc: {
+    name: "U-NEXT",
+    url: "https://www.video.unext.jp/?ref=fight-predict",
+    description: "UFCの全試合をライブ配信中",
+    cta: "U-NEXTで観る",
+  },
+  rizin: {
+    name: "ABEMA",
+    url: "https://abema.tv/video/genre/fighting?ref=fight-predict",
+    description: "RIZINの試合をライブ配信中",
+    cta: "ABEMAで観る",
+  },
+} as const;
+
+function WatchBanner({ org }: { org: "ufc" | "rizin" }) {
+  const link = AFFILIATE_LINKS[org];
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="watch-banner"
+    >
+      <span className="watch-banner-label">この試合を観るなら</span>
+      <span className="watch-banner-service">{link.name}</span>
+      <span className="watch-banner-desc">{link.description}</span>
+      <span className="watch-banner-cta">{link.cta} &rarr;</span>
+    </a>
+  );
+}
+
 function App() {
   const [fighterAName, setFighterAName] = useState("");
   const [fighterBName, setFighterBName] = useState("");
-  const [org, setOrg] = useState("ufc");
+  const [org, setOrg] = useState<"ufc" | "rizin">("ufc");
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [fighterA, setFighterA] = useState<Fighter | null>(null);
   const [fighterB, setFighterB] = useState<Fighter | null>(null);
@@ -359,6 +435,8 @@ function App() {
       return;
     }
 
+    if (loading) return; // 連打防止
+
     setLoading(true);
     setError("");
     setPrediction(null);
@@ -395,7 +473,11 @@ function App() {
       if (faRes.ok) setFighterA(await faRes.json());
       if (fbRes.ok) setFighterB(await fbRes.json());
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "エラーが発生しました");
+      if (e instanceof TypeError) {
+        setError("サーバーに接続できません。しばらく待ってから再度お試しください。");
+      } else {
+        setError(e instanceof Error ? e.message : "エラーが発生しました");
+      }
     } finally {
       setLoading(false);
     }
@@ -404,7 +486,11 @@ function App() {
   const fetchEvents = async () => {
     setEventsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/events/upcoming?org=all`);
+      const res = await fetchWithWakeup(
+        `${API_BASE}/api/events/upcoming?org=all`,
+        {},
+        setWakingUp
+      );
       if (res.ok) {
         setEvents(await res.json());
       }
@@ -423,19 +509,23 @@ function App() {
       </header>
 
       {wakingUp && (
-        <div className="waking-banner">
+        <div className="waking-banner" role="alert">
           サーバー起動中です…（初回アクセスは最大1分ほどかかります）
         </div>
       )}
 
-      <nav className="tabs">
+      <nav className="tabs" role="tablist">
         <button
+          role="tab"
+          aria-selected={activeTab === "predict"}
           className={activeTab === "predict" ? "active" : ""}
           onClick={() => setActiveTab("predict")}
         >
           試合予測
         </button>
         <button
+          role="tab"
+          aria-selected={activeTab === "events"}
           className={activeTab === "events" ? "active" : ""}
           onClick={() => {
             setActiveTab("events");
@@ -447,9 +537,9 @@ function App() {
       </nav>
 
       {activeTab === "predict" && (
-        <main className="predict-section">
+        <main className="predict-section" role="tabpanel">
           <div className="input-area">
-            <div className="org-select">
+            <div className="org-select" role="group" aria-label="団体選択">
               <button
                 className={org === "ufc" ? "active" : ""}
                 onClick={() => setOrg("ufc")}
@@ -470,15 +560,17 @@ function App() {
                 onChange={setFighterAName}
                 onSelect={setFighterAName}
                 placeholder="選手A（例: Conor）"
+                label="選手A"
                 org={org}
                 onWaking={setWakingUp}
               />
-              <span className="vs">VS</span>
+              <span className="vs" aria-hidden="true">VS</span>
               <FighterInput
                 value={fighterBName}
                 onChange={setFighterBName}
                 onSelect={setFighterBName}
                 placeholder="選手B（例: Khabib）"
+                label="選手B"
                 org={org}
                 onWaking={setWakingUp}
               />
@@ -493,7 +585,7 @@ function App() {
             </button>
           </div>
 
-          {error && <div className="error">{error}</div>}
+          {error && <div className="error" role="alert">{error}</div>}
 
           {prediction && (
             <div className="result">
@@ -528,9 +620,9 @@ function App() {
                   <div className="stats-compare">
                     <h3>スタッツ比較</h3>
                     <div className="stats-header">
-                      <span>{fighterA.name.split(" ").pop()}</span>
+                      <span>{fighterA.name.split(" ").pop() || fighterA.name}</span>
                       <span></span>
-                      <span>{fighterB.name.split(" ").pop()}</span>
+                      <span>{fighterB.name.split(" ").pop() || fighterB.name}</span>
                     </div>
                     <StatCompare label="打撃/分" valA={fighterA.sig_strikes_landed_per_min} valB={fighterB.sig_strikes_landed_per_min} />
                     <StatCompare label="打撃精度" valA={fighterA.sig_strike_accuracy} valB={fighterB.sig_strike_accuracy} format="percent" />
@@ -552,13 +644,15 @@ function App() {
                   ))}
                 </ul>
               </div>
+
+              <WatchBanner org={org} />
             </div>
           )}
         </main>
       )}
 
       {activeTab === "events" && (
-        <main className="events-section">
+        <main className="events-section" role="tabpanel">
           {eventsLoading ? (
             <p className="loading-text">読み込み中...</p>
           ) : events.length === 0 ? (
@@ -566,7 +660,7 @@ function App() {
           ) : (
             <div className="events-list">
               {events.map((event, i) => (
-                <div key={i} className="event-card">
+                <div key={`${event.name}-${i}`} className="event-card">
                   <span className="event-org">{event.organization}</span>
                   <h3>{event.name}</h3>
                   <p>{event.date}</p>
@@ -576,6 +670,18 @@ function App() {
           )}
         </main>
       )}
+      <footer className="app-footer">
+        <div className="footer-links">
+          <a href={AFFILIATE_LINKS.ufc.url} target="_blank" rel="noopener noreferrer">
+            U-NEXTでUFCを観る
+          </a>
+          <span className="footer-sep">|</span>
+          <a href={AFFILIATE_LINKS.rizin.url} target="_blank" rel="noopener noreferrer">
+            ABEMAでRIZINを観る
+          </a>
+        </div>
+        <p className="footer-copy">&copy; 2026 FIGHT PREDICT</p>
+      </footer>
     </div>
   );
 }

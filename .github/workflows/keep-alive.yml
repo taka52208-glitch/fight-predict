@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping API
+        env:
+          API_URL: ${{ secrets.API_ENDPOINT || 'https://fight-predict-api.onrender.com/' }}
         run: |
           curl -fsS -m 90 -o /dev/null -w "status=%{http_code} time=%{time_total}s\n" \
-            https://fight-predict-api.onrender.com/
+            "$API_URL"

@@ -3,9 +3,13 @@
 On first load, scrapes recent RIZIN events from Sherdog to build a
 comprehensive fighter list with Japanese name lookups.
 """
+import asyncio
+import logging
 import re
 import httpx
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 
 SHERDOG_BASE = "https://www.sherdog.com"
 RIZIN_ORG_URL = "https://www.sherdog.com/organizations/Rizin-Fighting-Federation-10333"
@@ -270,6 +274,7 @@ MANUAL_EN_MAP = {v: k for k, v in MANUAL_JP_MAP.items()}
 # Runtime cache
 _rizin_fighters: list[dict] = []  # {"name": "English", "jp_name": "日本語", "url": "..."}
 _cache_loaded = False
+_cache_lock = asyncio.Lock()
 
 
 async def _fetch_page(url: str) -> str:
@@ -293,76 +298,80 @@ def _english_to_japanese(name: str) -> str:
 async def load_rizin_fighters():
     """Load ALL RIZIN fighters from all events on Sherdog."""
     global _rizin_fighters, _cache_loaded
-    if _cache_loaded:
-        return
 
-    fighters = {}  # name -> {"name", "jp_name", "katakana", "url"}
+    async with _cache_lock:
+        if _cache_loaded:
+            return
 
-    # Add all manually mapped fighters first
-    for jp, en in MANUAL_JP_MAP.items():
-        if en not in fighters:
-            fighters[en] = {
-                "name": en,
-                "jp_name": jp,
-                "katakana": "",
-                "url": "",
-            }
+        fighters = {}  # name -> {"name", "jp_name", "katakana", "url"}
 
-    # Get ALL RIZIN events from Sherdog
-    try:
-        html = await _fetch_page(RIZIN_ORG_URL)
-        soup = BeautifulSoup(html, "lxml")
+        # Add all manually mapped fighters first
+        for jp, en in MANUAL_JP_MAP.items():
+            if en not in fighters:
+                fighters[en] = {
+                    "name": en,
+                    "jp_name": jp,
+                    "katakana": "",
+                    "url": "",
+                }
 
-        event_links = soup.find_all("a", href=lambda h: h and "/events/" in str(h))
-        event_urls = []
-        seen = set()
-        for link in event_links:
-            href = link.get("href", "")
-            name = link.get_text(strip=True)
-            if href not in seen and name and "rizin" in name.lower():
-                seen.add(href)
-                url = SHERDOG_BASE + href if href.startswith("/") else href
-                event_urls.append(url)
+        # Get ALL RIZIN events from Sherdog
+        try:
+            html = await _fetch_page(RIZIN_ORG_URL)
+            soup = BeautifulSoup(html, "lxml")
 
-        # Scrape fighters from ALL events
-        for event_url in event_urls:
-            try:
-                html = await _fetch_page(event_url)
-                soup = BeautifulSoup(html, "lxml")
-                fighter_links = soup.find_all("a", href=lambda h: h and "/fighter/" in str(h))
+            event_links = soup.find_all("a", href=lambda h: h and "/events/" in str(h))
+            event_urls = []
+            seen = set()
+            for link in event_links:
+                href = link.get("href", "")
+                name = link.get_text(strip=True)
+                if href not in seen and name and "rizin" in name.lower():
+                    seen.add(href)
+                    url = SHERDOG_BASE + href if href.startswith("/") else href
+                    event_urls.append(url)
 
-                for flink in fighter_links:
-                    fname = flink.get_text(strip=True)
-                    fhref = flink.get("href", "")
-                    if not fname or len(fname) < 3 or fname in fighters:
-                        continue
-                    # Fix concatenated names like "KyomaAkimoto"
-                    fname = re.sub(r"([a-z])([A-Z])", r"\1 \2", fname)
+            # Scrape fighters from ALL events
+            for event_url in event_urls:
+                try:
+                    html = await _fetch_page(event_url)
+                    soup = BeautifulSoup(html, "lxml")
+                    fighter_links = soup.find_all("a", href=lambda h: h and "/fighter/" in str(h))
 
-                    furl = SHERDOG_BASE + fhref if fhref.startswith("/") else fhref
-                    jp_name = _english_to_japanese(fname)
-                    # Also generate katakana for non-Japanese names
-                    katakana = ""
-                    if jp_name and jp_name == fname:
-                        jp_name = ""  # conversion returned same string
-                    if not jp_name or jp_name == fname:
-                        from app.services.en_to_katakana import english_to_katakana
-                        katakana = english_to_katakana(fname)
+                    for flink in fighter_links:
+                        fname = flink.get_text(strip=True)
+                        fhref = flink.get("href", "")
+                        if not fname or len(fname) < 3 or fname in fighters:
+                            continue
+                        # Fix concatenated names like "KyomaAkimoto"
+                        fname = re.sub(r"([a-z])([A-Z])", r"\1 \2", fname)
 
-                    fighters[fname] = {
-                        "name": fname,
-                        "jp_name": jp_name if jp_name else katakana,
-                        "katakana": katakana,
-                        "url": furl,
-                    }
-            except Exception:
-                continue
+                        furl = SHERDOG_BASE + fhref if fhref.startswith("/") else fhref
+                        jp_name = _english_to_japanese(fname)
+                        # Also generate katakana for non-Japanese names
+                        katakana = ""
+                        if jp_name and jp_name == fname:
+                            jp_name = ""  # conversion returned same string
+                        if not jp_name or jp_name == fname:
+                            from app.services.en_to_katakana import english_to_katakana
+                            katakana = english_to_katakana(fname)
 
-    except Exception:
-        pass
+                        fighters[fname] = {
+                            "name": fname,
+                            "jp_name": jp_name if jp_name else katakana,
+                            "katakana": katakana,
+                            "url": furl,
+                        }
+                except Exception as e:
+                    logger.warning(f"Failed to scrape RIZIN event {event_url}: {e}")
+                    continue
 
-    _rizin_fighters = list(fighters.values())
-    _cache_loaded = True
+        except Exception as e:
+            logger.warning(f"Failed to load RIZIN events from Sherdog: {e}")
+
+        _rizin_fighters = list(fighters.values())
+        _cache_loaded = True
+        logger.info(f"RIZIN fighter cache loaded: {len(_rizin_fighters)} fighters")
 
 
 async def suggest_rizin_all(query: str, limit: int = 10) -> list[dict]:

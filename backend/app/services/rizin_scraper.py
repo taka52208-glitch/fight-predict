@@ -29,14 +29,17 @@ async def _search_sherdog_links(query: str) -> list[dict]:
     seen = set()
     query_lower = query.lower()
 
+    query_words = query_lower.split()
+
     all_links = soup.find_all("a", href=lambda h: h and "/fighter/" in h)
     for link in all_links:
         name = link.get_text(strip=True)
         href = link.get("href", "")
         if not name or href in seen:
             continue
-        # Only include fighters whose name matches the query
-        if query_lower not in name.lower():
+        # Word-level match: at least one query word must match a whole word in the name
+        name_words = name.lower().split()
+        if not any(qw in name_words for qw in query_words):
             continue
         seen.add(href)
         url = SHERDOG_BASE + href if href.startswith("/") else href
@@ -93,24 +96,72 @@ def _name_variants(name: str) -> list[str]:
     return list(variants)
 
 
+def _name_match_score(target: str, found: str) -> int:
+    """Score how well two fighter names match. Higher = better. 0 = no match."""
+    target = target.lower().strip()
+    found = found.lower().strip()
+
+    # Exact match
+    if target == found:
+        return 100
+
+    target_parts = target.split()
+    found_parts = found.split()
+
+    # Full name match (first + last in either order)
+    if len(target_parts) >= 2 and len(found_parts) >= 2:
+        # Both first and last name must appear
+        first_match = target_parts[0] in found_parts or any(
+            fp.startswith(target_parts[0]) for fp in found_parts
+        )
+        last_match = target_parts[-1] in found_parts or any(
+            fp.startswith(target_parts[-1]) for fp in found_parts
+        )
+        if first_match and last_match:
+            return 90
+
+    # Single name token: require exact word match, not substring
+    if len(target_parts) == 1:
+        if target_parts[0] in found_parts:
+            return 70
+        # Allow startswith for single names (e.g., "Ito" matches "Ito Yuki")
+        if any(fp.startswith(target_parts[0]) and len(target_parts[0]) >= 4 for fp in found_parts):
+            return 50
+
+    # Last name exact match (only if target has multiple parts)
+    if len(target_parts) >= 2 and target_parts[-1] in found_parts:
+        return 40
+
+    return 0
+
+
 async def search_fighter_sherdog(name: str) -> dict | None:
     """Search for a fighter on Sherdog and return their profile URL."""
-    target = name.lower().strip()
+    target = name.strip()
+    parts = target.split()
+    if not parts:
+        return None
 
     # Try full name first, then last name
-    search_terms = [name]
-    parts = name.split()
+    search_terms = [target]
     if len(parts) > 1:
         search_terms.append(parts[-1])
-        # Try first name too for romaji variants
-        search_terms.append(parts[0])
+
+    best_match = None
+    best_score = 0
 
     for term in search_terms:
         links = await _search_sherdog_links(term)
         for item in links:
-            found = item["name"].lower()
-            if target == found or target in found or found in target:
-                return item
+            score = _name_match_score(target, item["name"])
+            if score > best_score:
+                best_score = score
+                best_match = item
+            if score >= 90:
+                return best_match
+
+    if best_score >= 40:
+        return best_match
 
     # Fallback: try romaji variants of the last name
     if len(parts) > 1:
@@ -119,12 +170,12 @@ async def search_fighter_sherdog(name: str) -> dict | None:
                 continue
             links = await _search_sherdog_links(variant)
             for item in links:
-                found = item["name"].lower()
-                # Match if first name matches
-                if parts[0].lower() in found:
-                    return item
+                score = _name_match_score(target, item["name"])
+                if score > best_score:
+                    best_score = score
+                    best_match = item
 
-    return None
+    return best_match if best_score >= 40 else None
 
 
 def _parse_height_inches(height_str: str) -> float:
@@ -141,6 +192,7 @@ def _estimate_stats(wins: int, losses: int, ko_wins: int, sub_wins: int,
 
     Uses statistical averages from MMA as baselines, then adjusts based on
     the fighter's win methods to create reasonable approximations.
+    Returns is_estimated=True to flag these as estimates (not real data).
     """
     if total_fights == 0:
         return {
@@ -154,53 +206,61 @@ def _estimate_stats(wins: int, losses: int, ko_wins: int, sub_wins: int,
             "submission_avg": 0.0,
             "height_inches": _parse_height_inches(height),
             "style": "balanced",
+            "is_estimated": True,
         }
 
-    win_rate = wins / total_fights if total_fights > 0 else 0.5
+    win_rate = wins / total_fights
     ko_rate = ko_wins / wins if wins > 0 else 0.0
     sub_rate = sub_wins / wins if wins > 0 else 0.0
     dec_rate = dec_wins / wins if wins > 0 else 0.0
 
+    # Ensure method rates don't exceed 1.0 (data error guard)
+    total_method = ko_rate + sub_rate + dec_rate
+    if total_method > 1.0 and total_method > 0:
+        ko_rate /= total_method
+        sub_rate /= total_method
+        dec_rate /= total_method
+
     # MMA averages (from UFC data): SLpM ~3.5, SApM ~3.0, Str.Acc ~0.45
     # Adjust based on fighter profile
 
-    # Striking: KO fighters hit more often and harder
+    # Striking: KO fighters land more per minute
     base_slpm = 3.5
-    slpm = base_slpm * (1.0 + ko_rate * 0.6 - sub_rate * 0.3)
-    slpm = max(1.0, min(7.0, slpm))  # clamp
+    slpm = base_slpm * (1.0 + ko_rate * 0.5 - sub_rate * 0.15)
+    slpm = max(1.5, min(6.5, slpm))
 
-    # Accuracy: better fighters tend to be more accurate
-    acc = 0.45 + (win_rate - 0.5) * 0.15 + ko_rate * 0.05
-    acc = max(0.30, min(0.65, acc))
+    # Accuracy: correlates with win rate and finishing ability
+    acc = 0.44 + (win_rate - 0.5) * 0.12 + ko_rate * 0.04
+    acc = max(0.32, min(0.60, acc))
 
-    # Absorbed: better defenders absorb less
+    # Absorbed: inversely correlates with win rate
     base_sapm = 3.0
-    sapm = base_sapm * (1.0 - (win_rate - 0.5) * 0.4)
-    sapm = max(1.0, min(6.0, sapm))
+    sapm = base_sapm * (1.0 - (win_rate - 0.5) * 0.3)
+    sapm = max(1.5, min(5.5, sapm))
 
-    # Strike defense
-    str_def = 0.52 + (win_rate - 0.5) * 0.2
-    str_def = max(0.35, min(0.70, str_def))
+    # Strike defense: better fighters defend better
+    str_def = 0.52 + (win_rate - 0.5) * 0.16
+    str_def = max(0.38, min(0.68, str_def))
 
     # Takedowns: grapplers/submission fighters take down more
-    td_avg = 1.5 * (1.0 + sub_rate * 1.5 - ko_rate * 0.3)
-    td_avg = max(0.0, min(5.0, td_avg))
+    td_avg = 1.2 * (1.0 + sub_rate * 1.2)
+    td_avg = max(0.0, min(4.0, td_avg))
 
-    td_acc = 0.40 + sub_rate * 0.15 + (win_rate - 0.5) * 0.1
-    td_acc = max(0.25, min(0.65, td_acc))
+    td_acc = 0.38 + sub_rate * 0.12 + (win_rate - 0.5) * 0.08
+    td_acc = max(0.28, min(0.58, td_acc))
 
-    # TD defense: strikers tend to have lower TD defense
-    td_def = 0.60 + (win_rate - 0.5) * 0.15 - ko_rate * 0.05 + sub_rate * 0.05
-    td_def = max(0.35, min(0.85, td_def))
+    # TD defense
+    td_def = 0.58 + (win_rate - 0.5) * 0.12 + sub_rate * 0.04
+    td_def = max(0.38, min(0.78, td_def))
 
-    # Submissions per fight
-    sub_avg = sub_rate * 2.0 if wins > 0 else 0.0
-    sub_avg = max(0.0, min(3.0, sub_avg))
+    # Submissions per fight (scaled to per-fight frequency)
+    sub_avg = (sub_wins / total_fights) * 1.5 if total_fights > 0 else 0.0
+    sub_avg = max(0.0, min(2.5, sub_avg))
 
-    # Determine style
-    if ko_rate > 0.5 and sub_rate < 0.2:
+    # Determine style using clearer thresholds
+    if ko_rate >= 0.5 and sub_rate < 0.2:
         style = "striker"
-    elif sub_rate > 0.3 or td_avg > 2.5:
+    elif sub_rate >= 0.3 or (td_avg > 2.0 and sub_rate >= 0.15):
         style = "grappler"
     else:
         style = "balanced"
@@ -216,6 +276,7 @@ def _estimate_stats(wins: int, losses: int, ko_wins: int, sub_wins: int,
         "submission_avg": round(sub_avg, 2),
         "height_inches": _parse_height_inches(height),
         "style": style,
+        "is_estimated": True,
     }
 
 
@@ -420,6 +481,7 @@ async def get_fighter_from_sherdog(url: str) -> Fighter | None:
         takedown_accuracy=estimated["takedown_accuracy"],
         takedown_defense=estimated["takedown_defense"],
         submission_avg=estimated["submission_avg"],
+        is_estimated=estimated.get("is_estimated", True),
     )
 
 

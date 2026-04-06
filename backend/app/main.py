@@ -1,6 +1,9 @@
 import os
+import logging
+import asyncio
+from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.models.fighter import Fighter, Prediction
@@ -20,10 +23,12 @@ from app.services.rizin_cache import suggest_rizin_all, get_all_jp_names
 from app.services.predictor import calculate_prediction
 from app.services.name_mapping import get_romaji_query
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="格闘技試合予測ツール", version="1.0.0")
 
 # カンマ区切りで許可するオリジンを指定 (例: "https://fight-predict.vercel.app,http://localhost:5173")
-# 未設定時は "*" (開発用)
+# 未設定時は "*" (開発用 — 本番では環境変数 ALLOWED_ORIGINS を設定すること)
 _allowed = os.getenv("ALLOWED_ORIGINS", "*")
 allow_origins = [o.strip() for o in _allowed.split(",")] if _allowed != "*" else ["*"]
 
@@ -38,13 +43,13 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_preload():
-    """Pre-load UFC fighter cache and RIZIN cache at startup."""
-    import asyncio
+    """Pre-load UFC fighter cache and RIZIN cache at startup (non-blocking)."""
     from app.services.ufc_scraper import load_fighter_cache
     from app.services.rizin_cache import preload_rizin_cache
 
     asyncio.create_task(load_fighter_cache())
     asyncio.create_task(preload_rizin_cache())
+    logger.info("Startup cache loading tasks dispatched")
 
 
 def _is_japanese(text: str) -> bool:
@@ -61,18 +66,37 @@ def _resolve_name(name: str) -> str:
         name = name.strip()
         # Check RIZIN cache mapping
         jp_map = get_all_jp_names()
-        # Exact match
+        # Exact match first
         if name in jp_map:
             return jp_map[name]
-        # Partial match
+        # Partial match - prefer longer keys (more specific) and require minimum overlap
+        best_match = None
+        best_len = 0
         for jp, en in jp_map.items():
             if name in jp or jp in name:
-                return en
+                if len(jp) > best_len:
+                    best_match = en
+                    best_len = len(jp)
+        if best_match:
+            return best_match
         # Romaji fallback
         romaji = get_romaji_query(name)
         if romaji:
             return romaji
     return name
+
+
+# Allowed domains for event URL fetching (SSRF protection)
+_ALLOWED_EVENT_DOMAINS = {"ufcstats.com", "www.ufcstats.com", "www.sherdog.com", "sherdog.com"}
+
+
+def _validate_event_url(url: str) -> bool:
+    """Validate that an event URL belongs to an allowed domain."""
+    try:
+        parsed = urlparse(url)
+        return parsed.hostname in _ALLOWED_EVENT_DOMAINS
+    except Exception:
+        return False
 
 
 @app.get("/")
@@ -83,20 +107,27 @@ async def root():
 async def _find_fighter(name: str, org: str):
     """Try primary org, fall back to the other org if not found."""
     resolved = _resolve_name(name)
-    if org.lower() == "ufc":
-        fighter = await search_fighter(resolved)
-        if not fighter:
-            fighter = await search_rizin_fighter(resolved)
-    else:
-        fighter = await search_rizin_fighter(resolved)
-        if not fighter:
+    try:
+        if org.lower() == "ufc":
             fighter = await search_fighter(resolved)
-    return fighter
+            if not fighter:
+                fighter = await search_rizin_fighter(resolved)
+        else:
+            fighter = await search_rizin_fighter(resolved)
+            if not fighter:
+                fighter = await search_fighter(resolved)
+        return fighter
+    except Exception as e:
+        logger.error(f"Error finding fighter '{name}' (resolved: '{resolved}'): {e}")
+        return None
 
 
 @app.get("/api/fighter/{name}")
 async def get_fighter(name: str, org: str = "ufc") -> Fighter:
     """Search for a fighter by name (supports Japanese, falls back to other org)."""
+    if len(name) > 100:
+        raise HTTPException(status_code=400, detail="選手名が長すぎます")
+
     fighter = await _find_fighter(name, org)
 
     if not fighter:
@@ -106,9 +137,9 @@ async def get_fighter(name: str, org: str = "ufc") -> Fighter:
 
 
 @app.get("/api/suggest")
-async def suggest(q: str, org: str = "ufc"):
+async def suggest(q: str = Query(..., max_length=100), org: str = "ufc"):
     """Suggest fighters matching a partial name query (supports Japanese)."""
-    if not q or len(q) < 1:
+    if not q:
         return []
 
     # RIZIN mode: use comprehensive RIZIN cache (supports Japanese)
@@ -167,6 +198,9 @@ async def upcoming_events(org: str = "all"):
 @app.get("/api/events/{org}/{event_url:path}/fights")
 async def event_fights(org: str, event_url: str):
     """Get fight card for a specific event."""
+    if not _validate_event_url(event_url):
+        raise HTTPException(status_code=400, detail="無効なイベントURLです")
+
     if org.lower() == "ufc":
         fights = await get_event_fights(event_url)
     else:
@@ -178,6 +212,9 @@ async def event_fights(org: str, event_url: str):
 @app.get("/api/predict")
 async def predict_fight(fighter_a: str, fighter_b: str, org: str = "ufc") -> Prediction:
     """Predict the outcome of a fight between two fighters (supports Japanese)."""
+    if len(fighter_a) > 100 or len(fighter_b) > 100:
+        raise HTTPException(status_code=400, detail="選手名が長すぎます")
+
     fa = await _find_fighter(fighter_a, org)
     fb = await _find_fighter(fighter_b, org)
 
@@ -201,6 +238,9 @@ async def predict_fight(fighter_a: str, fighter_b: str, org: str = "ufc") -> Pre
 @app.get("/api/predict/event")
 async def predict_event(event_url: str, org: str = "ufc") -> list[Prediction]:
     """Predict all fights in an upcoming event."""
+    if not _validate_event_url(event_url):
+        raise HTTPException(status_code=400, detail="無効なイベントURLです")
+
     if org.lower() == "ufc":
         fights = await get_event_fights(event_url)
     else:
@@ -219,7 +259,8 @@ async def predict_event(event_url: str, org: str = "ufc") -> list[Prediction]:
             if fa and fb:
                 pred = calculate_prediction(fa, fb, fight)
                 predictions.append(pred)
-        except Exception:
+        except (ValueError, AttributeError, KeyError) as e:
+            logger.warning(f"Failed to predict fight {fight.fighter_a} vs {fight.fighter_b}: {e}")
             continue
 
     return predictions

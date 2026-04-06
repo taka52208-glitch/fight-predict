@@ -32,11 +32,11 @@ class Fighter(BaseModel):
     height_inches: float = 0.0  # parsed numeric height
     style: str = ""  # "striker", "grappler", "balanced"
     # v3 fields
-    age: int = 0
     last_fight_date: str = ""  # "YYYY-MM-DD" or raw date string
     opponent_avg_win_rate: float = -1.0  # avg win rate of past opponents (-1 = unknown)
     head_to_head: dict[str, dict] = {}  # {opponent_name: {"wins": N, "losses": N}}
     previous_weight_class: str = ""  # previous weight class if changed
+    is_estimated: bool = False  # True if stats are estimated (not scraped from real data)
 
     @property
     def win_rate(self) -> float:
