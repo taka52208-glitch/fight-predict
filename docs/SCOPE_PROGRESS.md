@@ -2,9 +2,9 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v3完成＋セキュリティ・品質・精度改善完了＋マネタイズ準備中（スマホ公開中）
-- **進捗率**: 100%（v3）／マネタイズ進行中
-- **最終更新日**: 2026-04-06
+- **ステータス**: v3完成＋安定性・精度改善継続中＋マネタイズ準備中（スマホ公開中）
+- **進捗率**: 100%（v3）／安定性改善・マネタイズ進行中
+- **最終更新日**: 2026-04-07
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
 - **APIエンドポイント**: https://fight-predict-api.onrender.com
 - **GitHub**: https://github.com/taka52208-glitch/fight-predict
@@ -167,6 +167,7 @@
 #### その他（2件）
 - [x] **User-Agentを正直な識別子に変更**（ufc_scraper.py / rizin_scraper.py / rizin_cache.py）
   - ブラウザ偽装→`fight-predict-bot/1.0`
+  - ⚠️ 2026-04-07に撤回：Sherdog/ufcstats.comがbot UAをブロックするため、ブラウザ互換UAに戻した
 - [x] **keep-alive.ymlのAPI URLを環境変数化**（keep-alive.yml）
   - 公開リポジトリでの本番URL露出を軽減
 
@@ -201,6 +202,33 @@
   - 「※スタッツは戦績から推定」をユーザーに明示
 - [x] **年齢バウンドチェック追加**（ufc_scraper.py）
   - 15〜60歳の範囲外は0（不明）として扱う → データ入力エラーによる誤ペナルティを防止
+
+### 安定性・同名別人問題の修正（2026-04-07追加）
+ユーザーから「選手が検索できない」「伊藤祐樹・神龍誠のデータが違う」との報告を受け修正。
+
+#### 検索不能の修正（3件）
+- [x] **User-Agentをブラウザ互換に戻す**（ufc_scraper.py / rizin_scraper.py / rizin_cache.py）
+  - `fight-predict-bot/1.0`がSherdog/ufcstats.comにブロックされていた
+  - `Mozilla/5.0 ...`に戻して復旧
+- [x] **サーバー起動をノンブロッキングに戻す**（main.py）
+  - `await asyncio.gather()`でキャッシュ読込完了まで起動がブロックされていた
+  - `asyncio.create_task()`に戻し、起動後すぐリクエスト受付可能に
+- [x] **CORSデフォルトを`*`に戻す**（main.py）
+  - `localhost`限定に変更されていたため、本番フロントからアクセス不可だった
+
+#### 同名別人問題の根本対策（4件）
+- [x] **RIZINキャッシュのSherdogURLを優先使用**（rizin_scraper.py）
+  - RIZIN大会ページから取得した正しいURLを最優先で利用
+  - Sherdog検索へのフォールバックは最終手段に
+- [x] **Sherdog検索でRIZIN出場歴を検証**（rizin_scraper.py）
+  - 同スコアの候補が複数ある場合、プロフィールに"RIZIN"が含まれる選手を優先
+- [x] **Sherdog検索で名前の語順逆転にも対応**（rizin_scraper.py）
+  - 日本人名はSherdog上で「Goto Shinryusei」「Shinryusei Goto」どちらの語順もあり得る
+  - 全名・逆順名・ファーストネーム単体・ラストネーム単体を順次試行
+- [x] **漢字表記揺れ・リングネームのマッピング追加**（rizin_cache.py）
+  - 「伊藤祐樹」（祐）→「伊藤裕樹」（裕）と同じ"Yuki Ito"にマッピング
+  - 「神龍誠」→ Sherdog上の正式名"Makoto Takahashi"にマッピング（Web検索で特定）
+  - ひらがな「しんりゅうせい」「しんりゅうまこと」も追加
 
 ### マネタイズ対応（2026-04-06追加）
 - [x] **アフィリエイトリンクUIの実装**（App.tsx / App.css）
