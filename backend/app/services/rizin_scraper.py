@@ -135,8 +135,21 @@ def _name_match_score(target: str, found: str) -> int:
     return 0
 
 
-async def search_fighter_sherdog(name: str) -> dict | None:
-    """Search for a fighter on Sherdog and return their profile URL."""
+async def _has_rizin_history(url: str) -> bool:
+    """Check if a fighter's Sherdog page mentions RIZIN in fight history."""
+    try:
+        html = await fetch_page(url)
+        return "RIZIN" in html or "Rizin" in html
+    except Exception:
+        return False
+
+
+async def search_fighter_sherdog(name: str, prefer_rizin: bool = False) -> dict | None:
+    """Search for a fighter on Sherdog and return their profile URL.
+
+    When prefer_rizin=True and multiple candidates share the same score,
+    verify fight history and prefer the one with RIZIN bouts.
+    """
     target = name.strip()
     parts = target.split()
     if not parts:
@@ -147,35 +160,51 @@ async def search_fighter_sherdog(name: str) -> dict | None:
     if len(parts) > 1:
         search_terms.append(parts[-1])
 
-    best_match = None
-    best_score = 0
+    # Collect all candidates with their scores
+    candidates: list[tuple[int, dict]] = []
 
     for term in search_terms:
         links = await _search_sherdog_links(term)
         for item in links:
             score = _name_match_score(target, item["name"])
-            if score > best_score:
-                best_score = score
-                best_match = item
-            if score >= 90:
-                return best_match
-
-    if best_score >= 40:
-        return best_match
+            if score > 0:
+                candidates.append((score, item))
 
     # Fallback: try romaji variants of the last name
-    if len(parts) > 1:
+    if not any(s >= 40 for s, _ in candidates) and len(parts) > 1:
         for variant in _name_variants(parts[-1]):
             if variant == parts[-1]:
                 continue
             links = await _search_sherdog_links(variant)
             for item in links:
                 score = _name_match_score(target, item["name"])
-                if score > best_score:
-                    best_score = score
-                    best_match = item
+                if score > 0:
+                    candidates.append((score, item))
 
-    return best_match if best_score >= 40 else None
+    if not candidates:
+        return None
+
+    # Sort by score descending
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    best_score = candidates[0][0]
+
+    if best_score < 40:
+        return None
+
+    # Filter to top-scoring candidates
+    top = [item for score, item in candidates if score == best_score]
+
+    # If only one top candidate or RIZIN check not needed, return it
+    if len(top) == 1 or not prefer_rizin:
+        return top[0]
+
+    # Multiple candidates with same score → verify RIZIN history
+    for item in top:
+        if await _has_rizin_history(item["url"]):
+            return item
+
+    # None had RIZIN history, return first
+    return top[0]
 
 
 def _parse_height_inches(height_str: str) -> float:
@@ -501,8 +530,8 @@ async def search_rizin_fighter(name: str) -> Fighter | None:
             fighter.organization = "RIZIN"
             return fighter
 
-    # Fallback: search Sherdog
-    result = await search_fighter_sherdog(name)
+    # Fallback: search Sherdog (prefer RIZIN fighters when multiple matches)
+    result = await search_fighter_sherdog(name, prefer_rizin=True)
     if not result:
         return None
     fighter = await get_fighter_from_sherdog(result["url"])
