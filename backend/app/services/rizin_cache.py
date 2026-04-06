@@ -77,6 +77,7 @@ MANUAL_JP_MAP = {
     "木村柊也": "Shuya Kimura",
     "小山慶人": "Keito Oyama",
     "伊藤裕樹": "Yuki Ito",
+    "伊藤祐樹": "Yuki Ito",
     "樫村仁之介": "Jinnosuke Kashimura",
     "佐藤将光": "Shoko Sato",
     "征矢貴": "Takaki Soya",
@@ -452,3 +453,12 @@ def get_all_jp_names() -> dict[str, str]:
     combined = dict(MANUAL_JP_MAP)
     combined.update(HIRAGANA_MAP)
     return combined
+
+
+def get_cached_fighter_url(english_name: str) -> str | None:
+    """Return the cached Sherdog URL for a RIZIN fighter, if available."""
+    name_lower = english_name.lower().strip()
+    for f in _rizin_fighters:
+        if f["name"].lower() == name_lower and f.get("url"):
+            return f["url"]
+    return None

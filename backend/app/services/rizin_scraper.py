@@ -486,7 +486,22 @@ async def get_fighter_from_sherdog(url: str) -> Fighter | None:
 
 
 async def search_rizin_fighter(name: str) -> Fighter | None:
-    """Search for a RIZIN fighter by name."""
+    """Search for a RIZIN fighter by name.
+
+    Prefers the cached Sherdog URL from the RIZIN event scrape to avoid
+    matching the wrong person when multiple fighters share the same name.
+    """
+    from app.services.rizin_cache import get_cached_fighter_url
+
+    # Try cached URL first (scraped from RIZIN event pages → correct person)
+    cached_url = get_cached_fighter_url(name)
+    if cached_url:
+        fighter = await get_fighter_from_sherdog(cached_url)
+        if fighter:
+            fighter.organization = "RIZIN"
+            return fighter
+
+    # Fallback: search Sherdog
     result = await search_fighter_sherdog(name)
     if not result:
         return None
