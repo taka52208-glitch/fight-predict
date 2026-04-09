@@ -6,3 +6,6 @@ lxml==5.2.0
 pydantic==2.9.0
 apscheduler==3.10.4
 pykakasi==2.3.0
+scikit-learn==1.6.1
+numpy==2.2.4
+joblib==1.4.2

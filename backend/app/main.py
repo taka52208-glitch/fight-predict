@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.models.fighter import Fighter, Prediction
+from app.models.fighter import Fighter, Prediction, PredictionRecord, AccuracyStats
 from app.services.ufc_scraper import (
     search_fighter,
     suggest_fighters,
@@ -21,6 +21,13 @@ from app.services.rizin_scraper import (
 )
 from app.services.rizin_cache import suggest_rizin_all, get_all_jp_names
 from app.services.predictor import calculate_prediction
+from app.services.prediction_tracker import (
+    save_prediction,
+    record_result,
+    get_accuracy_stats,
+    get_pending_predictions,
+)
+from app.services.report_generator import generate_note_article, generate_x_posts
 from app.services.name_mapping import get_romaji_query
 
 logger = logging.getLogger(__name__)
@@ -47,9 +54,12 @@ async def startup_preload():
     from app.services.ufc_scraper import load_fighter_cache
     from app.services.rizin_cache import preload_rizin_cache
 
+    from app.services.ml_model import train_model_from_history
+
     asyncio.create_task(load_fighter_cache())
     asyncio.create_task(preload_rizin_cache())
-    logger.info("Startup cache loading tasks dispatched")
+    asyncio.create_task(train_model_from_history())
+    logger.info("Startup cache loading + ML training tasks dispatched")
 
 
 def _is_japanese(text: str) -> bool:
@@ -232,6 +242,13 @@ async def predict_fight(fighter_a: str, fighter_b: str, org: str = "ufc") -> Pre
     )
 
     prediction = calculate_prediction(fa, fb, fight)
+
+    # Auto-save prediction for accuracy tracking
+    try:
+        save_prediction(prediction, org)
+    except Exception as e:
+        logger.warning(f"Failed to save prediction record: {e}")
+
     return prediction
 
 
@@ -264,3 +281,145 @@ async def predict_event(event_url: str, org: str = "ufc") -> list[Prediction]:
             continue
 
     return predictions
+
+
+# ===== Prediction Tracking =====
+
+@app.post("/api/predictions/save")
+async def save_prediction_record(
+    fighter_a: str, fighter_b: str, org: str = "ufc"
+) -> PredictionRecord:
+    """Save a prediction to history for accuracy tracking."""
+    if len(fighter_a) > 100 or len(fighter_b) > 100:
+        raise HTTPException(status_code=400, detail="選手名が長すぎます")
+
+    fa = await _find_fighter(fighter_a, org)
+    fb = await _find_fighter(fighter_b, org)
+    if not fa:
+        raise HTTPException(status_code=404, detail=f"選手 '{fighter_a}' が見つかりません")
+    if not fb:
+        raise HTTPException(status_code=404, detail=f"選手 '{fighter_b}' が見つかりません")
+
+    from app.models.fighter import Fight
+    fight = Fight(
+        fighter_a=fa.name, fighter_b=fb.name,
+        weight_class=fa.weight_class or fb.weight_class,
+        organization=org.upper(),
+    )
+    prediction = calculate_prediction(fa, fb, fight)
+    record = save_prediction(prediction, org)
+    return record
+
+
+@app.post("/api/predictions/{prediction_id}/result")
+async def set_prediction_result(prediction_id: str, winner: str) -> PredictionRecord:
+    """Record the actual winner of a fight."""
+    result = record_result(prediction_id, winner)
+    if not result:
+        raise HTTPException(status_code=404, detail="予測が見つかりません")
+    return result
+
+
+@app.get("/api/predictions/accuracy")
+async def prediction_accuracy() -> AccuracyStats:
+    """Get prediction accuracy statistics."""
+    return get_accuracy_stats()
+
+
+@app.get("/api/predictions/pending")
+async def pending_predictions() -> list[PredictionRecord]:
+    """Get predictions that haven't been resolved yet."""
+    return get_pending_predictions()
+
+
+# ===== Content Generation (note / X) =====
+
+@app.get("/api/generate/note")
+async def generate_note(event_url: str, org: str = "ufc"):
+    """Generate a note article from event predictions."""
+    if not _validate_event_url(event_url):
+        raise HTTPException(status_code=400, detail="無効なイベントURLです")
+
+    if org.lower() == "ufc":
+        fights = await get_event_fights(event_url)
+    else:
+        fights = await get_rizin_event_fights(event_url)
+
+    if not fights:
+        raise HTTPException(status_code=404, detail="対戦カードが見つかりません")
+
+    event_name = fights[0].event_name if fights[0].event_name else "大会"
+    predictions = []
+    fighter_pairs = []
+
+    for fight in fights:
+        try:
+            if org.lower() == "ufc":
+                fa = await search_fighter(fight.fighter_a)
+                fb = await search_fighter(fight.fighter_b)
+            else:
+                fa = await search_rizin_fighter(fight.fighter_a)
+                fb = await search_rizin_fighter(fight.fighter_b)
+
+            if fa and fb:
+                pred = calculate_prediction(fa, fb, fight)
+                predictions.append(pred)
+                fighter_pairs.append((fa, fb))
+        except Exception as e:
+            logger.warning(f"Skipping fight for report: {e}")
+            continue
+
+    if not predictions:
+        raise HTTPException(status_code=404, detail="予測を生成できませんでした")
+
+    # Get accuracy stats if available
+    accuracy_pct = None
+    try:
+        stats = get_accuracy_stats()
+        if stats.total >= 5:
+            accuracy_pct = stats.accuracy
+    except Exception:
+        pass
+
+    article = generate_note_article(event_name, predictions, fighter_pairs, accuracy_pct)
+    return article
+
+
+@app.get("/api/generate/x-posts")
+async def generate_x(event_url: str, org: str = "ufc"):
+    """Generate X (Twitter) posts from event predictions."""
+    if not _validate_event_url(event_url):
+        raise HTTPException(status_code=400, detail="無効なイベントURLです")
+
+    if org.lower() == "ufc":
+        fights = await get_event_fights(event_url)
+    else:
+        fights = await get_rizin_event_fights(event_url)
+
+    if not fights:
+        raise HTTPException(status_code=404, detail="対戦カードが見つかりません")
+
+    event_name = fights[0].event_name if fights[0].event_name else "大会"
+    predictions = []
+
+    for fight in fights:
+        try:
+            if org.lower() == "ufc":
+                fa = await search_fighter(fight.fighter_a)
+                fb = await search_fighter(fight.fighter_b)
+            else:
+                fa = await search_rizin_fighter(fight.fighter_a)
+                fb = await search_rizin_fighter(fight.fighter_b)
+
+            if fa and fb:
+                pred = calculate_prediction(fa, fb, fight)
+                predictions.append(pred)
+        except Exception as e:
+            logger.warning(f"Skipping fight for X post: {e}")
+            continue
+
+    if not predictions:
+        raise HTTPException(status_code=404, detail="予測を生成できませんでした")
+
+    posts = generate_x_posts(event_name, predictions)
+    return posts

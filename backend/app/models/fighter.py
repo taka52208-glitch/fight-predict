@@ -99,3 +99,27 @@ class Prediction(BaseModel):
     confidence: str = ""  # "HIGH", "MEDIUM", "LOW"
     factors: list[str] = []
     method_prediction: str = ""  # "KO/TKO", "Submission", "Decision"
+
+
+class PredictionRecord(BaseModel):
+    id: str = ""
+    timestamp: str = ""
+    fighter_a_name: str
+    fighter_b_name: str
+    fighter_a_win_prob: float
+    fighter_b_win_prob: float
+    predicted_winner: str = ""
+    confidence: str = ""
+    method_prediction: str = ""
+    organization: str = ""
+    # 結果 (後から記録)
+    actual_winner: str | None = None
+    is_correct: bool | None = None
+
+
+class AccuracyStats(BaseModel):
+    total: int = 0
+    correct: int = 0
+    accuracy: float = 0.0
+    by_confidence: dict[str, dict] = {}  # {"HIGH": {"total": N, "correct": N, "accuracy": 0.X}}
+    recent: list[PredictionRecord] = []

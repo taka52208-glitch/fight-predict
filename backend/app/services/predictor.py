@@ -1,5 +1,9 @@
 import math
+import logging
 from app.models.fighter import Fighter, Fight, Prediction
+from app.services.ml_model import predict_ml, is_model_ready
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_ratio(a: float, b: float) -> tuple[float, float]:
@@ -333,6 +337,15 @@ def calculate_prediction(fighter_a: Fighter, fighter_b: Fighter, fight: Fight) -
     # Apply sigmoid spread to make predictions more decisive
     prob_a = _sigmoid_spread(prob_a, strength=3.0)
     prob_b = 1.0 - prob_a
+
+    # ===== Blend with ML model if available =====
+    ml_prob = predict_ml(fighter_a, fighter_b)
+    if ml_prob is not None:
+        # Blend: 60% rule-based + 40% ML
+        ml_weight = 0.4
+        prob_a = prob_a * (1 - ml_weight) + ml_prob * ml_weight
+        prob_b = 1.0 - prob_a
+        factors.append(f"※ AIモデル予測を加味（ML信頼度{ml_prob:.0%}）")
 
     # ===== Determine confidence =====
     diff = abs(prob_a - prob_b)

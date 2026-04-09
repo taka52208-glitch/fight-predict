@@ -97,6 +97,47 @@ type UpcomingEvent = {
   organization: string;
 };
 
+type PredictionRecord = {
+  id: string;
+  timestamp: string;
+  fighter_a_name: string;
+  fighter_b_name: string;
+  fighter_a_win_prob: number;
+  fighter_b_win_prob: number;
+  predicted_winner: string;
+  confidence: string;
+  method_prediction: string;
+  organization: string;
+  actual_winner: string | null;
+  is_correct: boolean | null;
+};
+
+type AccuracyStats = {
+  total: number;
+  correct: number;
+  accuracy: number;
+  by_confidence: Record<string, { total: number; correct: number; accuracy: number }>;
+  recent: PredictionRecord[];
+};
+
+type EventPrediction = {
+  fight: {
+    event_name: string;
+    event_date: string;
+    fighter_a: string;
+    fighter_b: string;
+    weight_class: string;
+    organization: string;
+  };
+  fighter_a_name: string;
+  fighter_b_name: string;
+  fighter_a_win_prob: number;
+  fighter_b_win_prob: number;
+  confidence: string;
+  factors: string[];
+  method_prediction: string;
+};
+
 function FighterInput({
   value,
   onChange,
@@ -375,6 +416,149 @@ const AFFILIATE_LINKS = {
   },
 } as const;
 
+function generateShareImage(pred: Prediction): Promise<Blob> {
+  return new Promise((resolve) => {
+    const W = 1200, H = 630;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d")!;
+
+    // Background
+    ctx.fillStyle = "#0a0a0f";
+    ctx.fillRect(0, 0, W, H);
+
+    // Top accent line
+    const grad = ctx.createLinearGradient(0, 0, W, 0);
+    grad.addColorStop(0, "#e53e3e");
+    grad.addColorStop(1, "#d69e2e");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, 6);
+
+    // Title
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 36px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("FIGHT PREDICT", W / 2, 60);
+
+    // Fighter names
+    ctx.font = "bold 48px sans-serif";
+    const nameA = pred.fighter_a_name;
+    const nameB = pred.fighter_b_name;
+    ctx.fillStyle = "#e53e3e";
+    ctx.textAlign = "right";
+    ctx.fillText(nameA, W / 2 - 40, 160);
+    ctx.fillStyle = "#3182ce";
+    ctx.textAlign = "left";
+    ctx.fillText(nameB, W / 2 + 40, 160);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 32px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("VS", W / 2, 155);
+
+    // Probability bar
+    const barY = 200, barH = 60, barX = 100, barW = W - 200;
+    const pctA = Math.round(pred.fighter_a_win_prob * 100);
+    const pctB = Math.round(pred.fighter_b_win_prob * 100);
+    const splitX = barX + barW * pred.fighter_a_win_prob;
+
+    // Rounded bar background
+    ctx.beginPath();
+    ctx.roundRect(barX, barY, barW, barH, 10);
+    ctx.clip();
+    ctx.fillStyle = "#e53e3e";
+    ctx.fillRect(barX, barY, splitX - barX, barH);
+    ctx.fillStyle = "#3182ce";
+    ctx.fillRect(splitX, barY, barX + barW - splitX, barH);
+    ctx.restore();
+    ctx.save();
+
+    // Bar text
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 28px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${pctA}%`, barX + (splitX - barX) / 2, barY + 40);
+    ctx.fillText(`${pctB}%`, splitX + (barX + barW - splitX) / 2, barY + 40);
+
+    // Confidence & Method
+    ctx.font = "24px sans-serif";
+    ctx.fillStyle = "#d69e2e";
+    ctx.textAlign = "center";
+    ctx.fillText(`信頼度: ${pred.confidence}　|　予想決着: ${pred.method_prediction}`, W / 2, 320);
+
+    // Factors (up to 4)
+    ctx.font = "20px sans-serif";
+    ctx.fillStyle = "#c8c8d0";
+    ctx.textAlign = "left";
+    const displayFactors = pred.factors.filter(f => !f.startsWith("※")).slice(0, 4);
+    displayFactors.forEach((f, i) => {
+      ctx.fillText(`• ${f}`, 120, 380 + i * 36);
+    });
+
+    // Footer
+    ctx.fillStyle = "#555";
+    ctx.font = "18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("fight-predict.vercel.app", W / 2, H - 30);
+
+    canvas.toBlob((blob) => resolve(blob!), "image/png");
+  });
+}
+
+async function shareToX(pred: Prediction) {
+  const pctA = Math.round(pred.fighter_a_win_prob * 100);
+  const pctB = Math.round(pred.fighter_b_win_prob * 100);
+  const winner = pctA >= pctB ? pred.fighter_a_name : pred.fighter_b_name;
+  const text = `🥊 ${pred.fighter_a_name} vs ${pred.fighter_b_name}\n\n勝者予測: ${winner}\n${pred.fighter_a_name} ${pctA}% - ${pctB}% ${pred.fighter_b_name}\n信頼度: ${pred.confidence} | 決着: ${pred.method_prediction}\n\n#FightPredict #格闘技予測`;
+  const url = "https://fight-predict-takas-projects-de61dd0f.vercel.app";
+
+  // Try Web Share API with image (mobile)
+  try {
+    const blob = await generateShareImage(pred);
+    const file = new File([blob], "fight-predict.png", { type: "image/png" });
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ text, url, files: [file] });
+      return;
+    }
+  } catch {
+    // fall through to X intent
+  }
+
+  // Fallback: X (Twitter) intent
+  const tweetUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text + "\n" + url)}`;
+  window.open(tweetUrl, "_blank", "noopener,noreferrer");
+}
+
+function ShareButton({ prediction }: { prediction: Prediction }) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadImage = async () => {
+    setDownloading(true);
+    try {
+      const blob = await generateShareImage(prediction);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `fight-predict-${prediction.fighter_a_name}-vs-${prediction.fighter_b_name}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="share-buttons">
+      <button className="share-btn share-x" onClick={() => shareToX(prediction)}>
+        Xでシェア
+      </button>
+      <button className="share-btn share-download" onClick={handleDownloadImage} disabled={downloading}>
+        {downloading ? "生成中..." : "画像を保存"}
+      </button>
+    </div>
+  );
+}
+
 function WatchBanner({ org }: { org: "ufc" | "rizin" }) {
   const link = AFFILIATE_LINKS[org];
   return (
@@ -403,8 +587,16 @@ function App() {
   const [error, setError] = useState("");
   const [events, setEvents] = useState<UpcomingEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"predict" | "events">("predict");
+  const [activeTab, setActiveTab] = useState<"predict" | "events" | "accuracy">("predict");
   const [wakingUp, setWakingUp] = useState(false);
+  const [eventPredictions, setEventPredictions] = useState<EventPrediction[]>([]);
+  const [eventPredLoading, setEventPredLoading] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<UpcomingEvent | null>(null);
+  const [accuracyStats, setAccuracyStats] = useState<AccuracyStats | null>(null);
+  const [accuracyLoading, setAccuracyLoading] = useState(false);
+  const [generatedNote, setGeneratedNote] = useState<{ title: string; free_section: string; paid_section: string; full: string } | null>(null);
+  const [generatedXPosts, setGeneratedXPosts] = useState<{ text: string; type: string }[]>([]);
+  const [genLoading, setGenLoading] = useState("");
 
   // マウント時にサーバーへウォームアップping (Renderコールドスタート対策)
   useEffect(() => {
@@ -501,6 +693,103 @@ function App() {
     }
   };
 
+  const fetchAccuracy = async () => {
+    setAccuracyLoading(true);
+    try {
+      const res = await fetchWithWakeup(
+        `${API_BASE}/api/predictions/accuracy`,
+        {},
+        setWakingUp
+      );
+      if (res.ok) {
+        setAccuracyStats(await res.json());
+      }
+    } catch {
+      setAccuracyStats(null);
+    } finally {
+      setAccuracyLoading(false);
+    }
+  };
+
+  const recordResult = async (predictionId: string, winner: string) => {
+    try {
+      const res = await fetchWithWakeup(
+        `${API_BASE}/api/predictions/${predictionId}/result?winner=${encodeURIComponent(winner)}`,
+        { method: "POST" },
+        setWakingUp
+      );
+      if (res.ok) {
+        fetchAccuracy(); // refresh
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const generateNote = async (event: UpcomingEvent) => {
+    setGenLoading("note");
+    try {
+      const org = event.organization.toLowerCase();
+      const res = await fetchWithWakeup(
+        `${API_BASE}/api/generate/note?event_url=${encodeURIComponent(event.url)}&org=${org}`,
+        {},
+        setWakingUp
+      );
+      if (res.ok) {
+        setGeneratedNote(await res.json());
+      }
+    } catch {
+      setGeneratedNote(null);
+    } finally {
+      setGenLoading("");
+    }
+  };
+
+  const generateXPosts = async (event: UpcomingEvent) => {
+    setGenLoading("x");
+    try {
+      const org = event.organization.toLowerCase();
+      const res = await fetchWithWakeup(
+        `${API_BASE}/api/generate/x-posts?event_url=${encodeURIComponent(event.url)}&org=${org}`,
+        {},
+        setWakingUp
+      );
+      if (res.ok) {
+        setGeneratedXPosts(await res.json());
+      }
+    } catch {
+      setGeneratedXPosts([]);
+    } finally {
+      setGenLoading("");
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+  };
+
+  const fetchEventPredictions = async (event: UpcomingEvent) => {
+    if (eventPredLoading) return;
+    setSelectedEvent(event);
+    setEventPredictions([]);
+    setEventPredLoading(true);
+    try {
+      const org = event.organization.toLowerCase();
+      const res = await fetchWithWakeup(
+        `${API_BASE}/api/predict/event?event_url=${encodeURIComponent(event.url)}&org=${org}`,
+        {},
+        setWakingUp
+      );
+      if (res.ok) {
+        setEventPredictions(await res.json());
+      }
+    } catch {
+      setEventPredictions([]);
+    } finally {
+      setEventPredLoading(false);
+    }
+  };
+
   return (
     <div className="app">
       <header className="header">
@@ -533,6 +822,17 @@ function App() {
           }}
         >
           大会一覧
+        </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === "accuracy"}
+          className={activeTab === "accuracy" ? "active" : ""}
+          onClick={() => {
+            setActiveTab("accuracy");
+            fetchAccuracy();
+          }}
+        >
+          的中率
         </button>
       </nav>
 
@@ -645,6 +945,7 @@ function App() {
                 </ul>
               </div>
 
+              <ShareButton prediction={prediction} />
               <WatchBanner org={org} />
             </div>
           )}
@@ -660,16 +961,187 @@ function App() {
           ) : (
             <div className="events-list">
               {events.map((event, i) => (
-                <div key={`${event.name}-${i}`} className="event-card">
+                <div key={`${event.name}-${i}`} className="event-card clickable" onClick={() => fetchEventPredictions(event)}>
                   <span className="event-org">{event.organization}</span>
                   <h3>{event.name}</h3>
                   <p>{event.date}</p>
+                  <span className="event-predict-hint">クリックで全試合予測 →</span>
                 </div>
               ))}
             </div>
           )}
+
+          {selectedEvent && (
+            <div className="event-predictions">
+              <h2 className="event-pred-title">{selectedEvent.name} — 全試合予測</h2>
+              {eventPredLoading ? (
+                <p className="loading-text">全試合を分析中...</p>
+              ) : eventPredictions.length === 0 ? (
+                <p className="loading-text">対戦カードが見つかりません</p>
+              ) : (
+                <div className="event-pred-list">
+                  {eventPredictions.map((ep, i) => {
+                    const pctA = Math.round(ep.fighter_a_win_prob * 100);
+                    const pctB = Math.round(ep.fighter_b_win_prob * 100);
+                    const winner = pctA >= pctB ? ep.fighter_a_name : ep.fighter_b_name;
+                    return (
+                      <div key={i} className="event-pred-card">
+                        <div className="ep-weight">{ep.fight.weight_class}</div>
+                        <div className="ep-matchup">
+                          <span className={`ep-fighter ${pctA >= pctB ? "ep-winner" : ""}`}>
+                            {ep.fighter_a_name}
+                          </span>
+                          <span className="ep-vs">VS</span>
+                          <span className={`ep-fighter ${pctB > pctA ? "ep-winner" : ""}`}>
+                            {ep.fighter_b_name}
+                          </span>
+                        </div>
+                        <div className="ep-bar">
+                          <div className="ep-bar-a" style={{ width: `${Math.max(pctA, 8)}%` }}>{pctA}%</div>
+                          <div className="ep-bar-b" style={{ width: `${Math.max(pctB, 8)}%` }}>{pctB}%</div>
+                        </div>
+                        <div className="ep-meta">
+                          <span className="confidence-badge" data-level={ep.confidence}>{ep.confidence}</span>
+                          <span className="method-badge">{ep.method_prediction}</span>
+                          <span className="ep-pick">勝者予測: {winner}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="content-gen-section">
+                <h3>コンテンツ生成</h3>
+                <div className="gen-buttons">
+                  <button
+                    className="gen-btn gen-note"
+                    onClick={() => generateNote(selectedEvent)}
+                    disabled={genLoading !== ""}
+                  >
+                    {genLoading === "note" ? "生成中..." : "📝 note記事を生成"}
+                  </button>
+                  <button
+                    className="gen-btn gen-x"
+                    onClick={() => generateXPosts(selectedEvent)}
+                    disabled={genLoading !== ""}
+                  >
+                    {genLoading === "x" ? "生成中..." : "𝕏 X投稿を生成"}
+                  </button>
+                </div>
+
+                {generatedNote && (
+                  <div className="gen-output">
+                    <h4>note記事（無料部分）</h4>
+                    <pre className="gen-text">{generatedNote.free_section}</pre>
+                    <button className="copy-btn" onClick={() => copyToClipboard(generatedNote.free_section)}>コピー</button>
+                    <h4>note記事（有料部分）</h4>
+                    <pre className="gen-text">{generatedNote.paid_section}</pre>
+                    <button className="copy-btn" onClick={() => copyToClipboard(generatedNote.paid_section)}>コピー</button>
+                    <button className="copy-btn copy-all" onClick={() => copyToClipboard(generatedNote.full)}>全文コピー</button>
+                  </div>
+                )}
+
+                {generatedXPosts.length > 0 && (
+                  <div className="gen-output">
+                    {generatedXPosts.map((post, i) => (
+                      <div key={i} className="x-post-preview">
+                        <div className="x-post-label">{post.type === "main" ? "メイン投稿" : `カード ${i}`}</div>
+                        <pre className="gen-text">{post.text}</pre>
+                        <div className="x-post-actions">
+                          <button className="copy-btn" onClick={() => copyToClipboard(post.text)}>コピー</button>
+                          <a
+                            className="copy-btn post-x-btn"
+                            href={`https://x.com/intent/tweet?text=${encodeURIComponent(post.text)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Xに投稿
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <WatchBanner org={selectedEvent.organization.toLowerCase() as "ufc" | "rizin"} />
+            </div>
+          )}
         </main>
       )}
+      {activeTab === "accuracy" && (
+        <main className="accuracy-section" role="tabpanel">
+          {accuracyLoading ? (
+            <p className="loading-text">読み込み中...</p>
+          ) : !accuracyStats ? (
+            <p className="loading-text">データがありません</p>
+          ) : (
+            <>
+              <div className="accuracy-overview">
+                <div className="accuracy-big">
+                  <span className="accuracy-number">
+                    {accuracyStats.total > 0 ? `${Math.round(accuracyStats.accuracy * 100)}%` : "—"}
+                  </span>
+                  <span className="accuracy-label">総合的中率</span>
+                  <span className="accuracy-sub">
+                    {accuracyStats.correct} / {accuracyStats.total} 試合
+                  </span>
+                </div>
+
+                {Object.keys(accuracyStats.by_confidence).length > 0 && (
+                  <div className="accuracy-by-conf">
+                    {(["HIGH", "MEDIUM", "LOW"] as const).map((level) => {
+                      const data = accuracyStats.by_confidence[level];
+                      if (!data) return null;
+                      return (
+                        <div key={level} className="conf-stat">
+                          <span className="confidence-badge" data-level={level}>{level}</span>
+                          <span className="conf-accuracy">{Math.round(data.accuracy * 100)}%</span>
+                          <span className="conf-count">({data.correct}/{data.total})</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {accuracyStats.recent.length > 0 && (
+                <div className="accuracy-history">
+                  <h3>予測履歴</h3>
+                  {accuracyStats.recent.map((rec) => (
+                    <div key={rec.id} className={`history-card ${rec.is_correct === true ? "correct" : rec.is_correct === false ? "incorrect" : "pending"}`}>
+                      <div className="history-matchup">
+                        <span className="history-org">{rec.organization}</span>
+                        <span>{rec.fighter_a_name} vs {rec.fighter_b_name}</span>
+                      </div>
+                      <div className="history-detail">
+                        <span>予測: {rec.predicted_winner} ({Math.round(Math.max(rec.fighter_a_win_prob, rec.fighter_b_win_prob) * 100)}%)</span>
+                        <span className="confidence-badge" data-level={rec.confidence}>{rec.confidence}</span>
+                      </div>
+                      {rec.actual_winner !== null ? (
+                        <div className="history-result">
+                          結果: {rec.actual_winner}勝利 — {rec.is_correct ? "✓ 的中" : "✗ 不的中"}
+                        </div>
+                      ) : (
+                        <div className="history-actions">
+                          <span className="history-pending">結果未入力</span>
+                          <button className="result-btn" onClick={() => recordResult(rec.id, rec.fighter_a_name)}>
+                            {rec.fighter_a_name}勝利
+                          </button>
+                          <button className="result-btn" onClick={() => recordResult(rec.id, rec.fighter_b_name)}>
+                            {rec.fighter_b_name}勝利
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </main>
+      )}
+
       <footer className="app-footer">
         <div className="footer-links">
           <a href={AFFILIATE_LINKS.ufc.url} target="_blank" rel="noopener noreferrer">
