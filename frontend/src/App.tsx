@@ -369,7 +369,7 @@ const AFFILIATE_LINKS = {
   },
   rizin: {
     name: "ABEMA",
-    url: "https://abema.tv/video/genre/fighting?ref=fight-predict",
+    url: "https://abema.tv/subscription/lp/183c3ec2-c6d8-409e-80b6-caf5a8012f8a?utm_medium=ads&utm_source=afb&_fsi=MFfhS4ax",
     description: "RIZINの試合をライブ配信中",
     cta: "ABEMAで観る",
   },
