@@ -26,6 +26,8 @@ from app.services.prediction_tracker import (
     record_result,
     get_accuracy_stats,
     get_pending_predictions,
+    export_history,
+    import_history,
 )
 from app.services.report_generator import generate_note_article, generate_x_posts
 from app.services.name_mapping import get_romaji_query
@@ -48,18 +50,32 @@ app.add_middleware(
 )
 
 
+_startup_status = {"ufc_cache": "pending", "rizin_cache": "pending", "ml_model": "pending"}
+
+
+async def _safe_task(name: str, coro):
+    """Run a startup task with error handling and status tracking."""
+    _startup_status[name] = "running"
+    try:
+        await coro
+        _startup_status[name] = "ready"
+        logger.info(f"Startup task '{name}' completed")
+    except Exception as e:
+        _startup_status[name] = f"failed: {e}"
+        logger.error(f"Startup task '{name}' failed: {e}")
+
+
 @app.on_event("startup")
 async def startup_preload():
     """Pre-load UFC fighter cache and RIZIN cache at startup (non-blocking)."""
     from app.services.ufc_scraper import load_fighter_cache
     from app.services.rizin_cache import preload_rizin_cache
-
     from app.services.ml_model import train_model_from_history
 
-    asyncio.create_task(load_fighter_cache())
-    asyncio.create_task(preload_rizin_cache())
-    asyncio.create_task(train_model_from_history())
-    logger.info("Startup cache loading + ML training tasks dispatched")
+    asyncio.create_task(_safe_task("ufc_cache", load_fighter_cache()))
+    asyncio.create_task(_safe_task("rizin_cache", preload_rizin_cache()))
+    asyncio.create_task(_safe_task("ml_model", train_model_from_history()))
+    logger.info("Startup tasks dispatched")
 
 
 def _is_japanese(text: str) -> bool:
@@ -112,6 +128,17 @@ def _validate_event_url(url: str) -> bool:
 @app.get("/")
 async def root():
     return {"message": "格闘技試合予測ツール API"}
+
+
+@app.get("/health")
+async def health():
+    """Health check showing status of all subsystems."""
+    from app.services.ml_model import get_model_status
+    return {
+        "status": "ok",
+        "startup": _startup_status,
+        "ml_model": get_model_status(),
+    }
 
 
 async def _find_fighter(name: str, org: str):
@@ -423,3 +450,18 @@ async def generate_x(event_url: str, org: str = "ufc"):
 
     posts = generate_x_posts(event_name, predictions)
     return posts
+
+
+# ===== Data Export / Import (backup for ephemeral storage) =====
+
+@app.get("/api/predictions/export")
+async def export_predictions():
+    """Export all prediction history as JSON (for backup)."""
+    return export_history()
+
+
+@app.post("/api/predictions/import")
+async def import_predictions(data: list[dict]):
+    """Import prediction history from backup JSON."""
+    added = import_history(data)
+    return {"imported": added, "total": len(export_history())}

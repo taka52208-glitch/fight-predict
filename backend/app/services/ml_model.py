@@ -18,11 +18,13 @@ from sklearn.linear_model import LogisticRegression
 
 logger = logging.getLogger(__name__)
 
-_MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
+# Model is stored in the repo so it survives Render redeploys
+_MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "model")
 _MODEL_FILE = os.path.join(_MODEL_DIR, "fight_model.joblib")
 
 _model: LogisticRegression | None = None
 _model_ready = False
+_training_status = "idle"  # idle / loading / training / ready / failed
 
 
 def extract_features(fighter_a, fighter_b) -> np.ndarray:
@@ -98,37 +100,41 @@ def predict_ml(fighter_a, fighter_b) -> float | None:
 async def train_model_from_history():
     """Train model from past UFC event results scraped from ufcstats.com.
 
-    Collects completed fight data, extracts features, and trains
-    a logistic regression model.
+    1. Try loading pre-trained model from repo (survives redeploys)
+    2. If not found, train from scratch using 5 recent events (fast)
+    3. Save to disk for next restart within same deploy
     """
-    global _model, _model_ready
+    global _model, _model_ready, _training_status
 
-    # Check for existing trained model
+    # Step 1: Load existing model (committed to repo or from previous run)
+    _training_status = "loading"
     if os.path.exists(_MODEL_FILE):
         try:
             _model = joblib.load(_MODEL_FILE)
             _model_ready = True
+            _training_status = "ready"
             logger.info("Loaded existing ML model from disk")
             return
         except Exception as e:
             logger.warning(f"Failed to load saved model: {e}")
 
-    logger.info("Training ML model from historical fight data...")
+    # Step 2: Train from scratch (limited to 5 events for speed)
+    _training_status = "training"
+    logger.info("Training ML model from historical fight data (5 events)...")
 
     try:
         from app.services.ufc_scraper import search_fighter
         import httpx
         from bs4 import BeautifulSoup
 
-        # Scrape completed events for training data
         async with httpx.AsyncClient(
-            timeout=30.0,
+            timeout=20.0,
             headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
         ) as client:
-            # Get completed events page
             resp = await client.get("https://ufcstats.com/statistics/events/completed?page=all")
             if resp.status_code != 200:
                 logger.warning("Failed to fetch completed events for training")
+                _training_status = "failed"
                 return
 
             soup = BeautifulSoup(resp.text, "lxml")
@@ -138,8 +144,8 @@ async def train_model_from_history():
                 if link and link.get("href"):
                     event_links.append(link["href"].strip())
 
-            # Limit to recent 30 events for reasonable training time
-            event_links = event_links[:30]
+            # Only 5 events for fast startup (vs 30 before)
+            event_links = event_links[:5]
 
             X_data = []
             y_data = []
@@ -154,11 +160,6 @@ async def train_model_from_history():
                     fight_rows = event_soup.select("tr.b-fight-details__table-row.b-fight-details__table-row__hover")
 
                     for row in fight_rows:
-                        cols = row.select("td")
-                        if len(cols) < 2:
-                            continue
-
-                        # Get fighter names and winner
                         fighter_links = row.select("a.b-link.b-fight-details__person-link")
                         if len(fighter_links) < 2:
                             continue
@@ -166,19 +167,17 @@ async def train_model_from_history():
                         name_a = fighter_links[0].get_text(strip=True)
                         name_b = fighter_links[1].get_text(strip=True)
 
-                        # Determine winner (first column has W/L indicator)
                         result_cells = row.select("td p.b-fight-details__table-text")
                         if not result_cells:
                             continue
                         result_text = result_cells[0].get_text(strip=True).upper()
                         if result_text == "W":
-                            winner = 1  # fighter_a won
+                            winner = 1
                         elif result_text == "L":
-                            winner = 0  # fighter_b won
+                            winner = 0
                         else:
-                            continue  # draw/NC
+                            continue
 
-                        # Search both fighters
                         fa = await search_fighter(name_a)
                         fb = await search_fighter(name_b)
 
@@ -191,17 +190,15 @@ async def train_model_from_history():
                     logger.debug(f"Skipping event for training: {e}")
                     continue
 
-                # Yield control periodically
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.05)
 
-            if len(X_data) < 20:
+            if len(X_data) < 10:
                 logger.warning(f"Insufficient training data ({len(X_data)} fights), skipping ML training")
+                _training_status = "failed"
                 return
 
             X = np.array(X_data)
             y = np.array(y_data)
-
-            logger.info(f"Training ML model on {len(X)} fights...")
 
             model = LogisticRegression(
                 C=1.0,
@@ -217,10 +214,16 @@ async def train_model_from_history():
 
             _model = model
             _model_ready = True
-            logger.info(f"ML model trained successfully (accuracy on training set: {model.score(X, y):.2%})")
+            _training_status = "ready"
+            logger.info(f"ML model trained on {len(X)} fights (training accuracy: {model.score(X, y):.0%})")
 
     except Exception as e:
+        _training_status = "failed"
         logger.error(f"ML model training failed: {e}")
+
+
+def get_model_status() -> dict:
+    return {"ready": _model_ready, "status": _training_status}
 
 
 def is_model_ready() -> bool:

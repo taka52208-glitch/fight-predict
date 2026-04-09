@@ -24,3 +24,6 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Runtime data (ephemeral on Render)
+backend/data/

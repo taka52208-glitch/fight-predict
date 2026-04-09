@@ -2,8 +2,8 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v4完成＋マネタイズ進行中（ABEMA収益化開始・U-NEXT審査待ち）
-- **進捗率**: 100%（v4）／マネタイズ一部稼働中
+- **ステータス**: v4完成＋集客・収益化開始（X公式アカウント運用開始・note初出品完了）
+- **進捗率**: 100%（v4）／マネタイズ稼働中
 - **最終更新日**: 2026-04-10
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
 - **APIエンドポイント**: https://fight-predict-api.onrender.com
@@ -348,6 +348,9 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [ ] opponent_avg_win_rate キャッシュの定期更新（起動時ロードのみで長期的に陳腐化）
 - [ ] reach未取得選手（Sherdogに情報なし）の補完ロジック
 - [ ] カスタムドメイン割当
-- [ ] 有料プラン（詳細分析・通知機能）
-- [ ] X（Twitter）Bot化で集客（大会前に予測を自動ツイート）
-- [ ] note/Brainで大会予測レポート販売（1大会300〜500円）
+- [ ] 有料プラン（Stripe連携・詳細分析・通知機能）
+- [x] ~~X公式アカウント開設・運用開始~~（2026-04-10完了：@fight_predict_、プロフィール設定、UFC 327 + RIZIN LM13の予測投稿）
+- [x] ~~note初出品~~（2026-04-10完了：UFC 327 & RIZIN LANDMARK 13 全試合予測レポート 300円）
+- [ ] X Bot化で自動投稿（API $200/月のため当面は手動運用）
+- [ ] Google AdSense申請
+- [ ] LINE公式アカウント開設
