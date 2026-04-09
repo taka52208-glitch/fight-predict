@@ -277,6 +277,26 @@
   - 推定データのみの選手（RIZIN）ではML予測をスキップ
   - 予測根拠に「AIモデル予測を加味」を注記
 
+### 品質改善・問題修正（2026-04-10追加）
+- [x] **OGP/Twitterカードメタタグ追加**（index.html）
+  - og:title, og:description, og:image, twitter:card等を設定
+  - OGP画像(ogp.png)をpublic/に配置
+  - XやLINEでURL共有時にプレビュー画像・説明が表示されるように
+- [x] **ML学習の高速化**（ml_model.py）
+  - 学習データを30大会→5大会に削減（起動10-15分→1-2分）
+  - 保存済みモデルがあればロードしてスキップ
+  - ステータス追跡（idle/loading/training/ready/failed）
+- [x] **予測履歴のインメモリ管理化**（prediction_tracker.py）
+  - ファイルI/Oからインメモリ管理に変更（Render ephemeral対策）
+  - ファイルへの保存はベストエフォートバックアップとして維持
+  - export/import APIでデータのバックアップ・復元に対応
+- [x] **起動タスクのエラーハンドリング強化**（main.py）
+  - `_safe_task`ラッパーでエラーを捕捉しステータスに記録
+  - 失敗してもAPIは正常動作し、/healthで状態確認可能
+- [x] **/healthエンドポイント追加**（main.py）
+  - 全サブシステム（UFC cache / RIZIN cache / ML model）の状態を一覧表示
+- [x] **data/を.gitignoreに追加**（.gitignore）
+
 ### コンテンツ自動生成（2026-04-10追加）
 - [x] **noteレポート自動生成API**（report_generator.py / main.py）
   - `GET /api/generate/note?event_url=...&org=ufc` で大会全カード予測のnote記事を自動生成
