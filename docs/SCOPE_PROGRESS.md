@@ -2,9 +2,9 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v4完成＋集客・収益化開始（X公式アカウント運用開始・note初出品完了）
+- **ステータス**: v4完成＋マネタイズ二本柱稼働中（ABEMAアフィ＋楽天アフィ）
 - **進捗率**: 100%（v4）／マネタイズ稼働中
-- **最終更新日**: 2026-04-10
+- **最終更新日**: 2026-04-14
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
 - **APIエンドポイント**: https://fight-predict-api.onrender.com
 - **GitHub**: https://github.com/taka52208-glitch/fight-predict
@@ -364,13 +364,25 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~Vercel/Renderへのデプロイ~~（2026-04-05完了）
 - [x] ~~コールドスタート対策~~（2026-04-05完了：GitHub Actions定期ping + フロント側リトライ）
 - [x] ~~選手情報の正確性改善~~（2026-04-05完了：weight_class/last_fight_date/NC計上/reach等の6バグ修正）
-- [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
-- [ ] opponent_avg_win_rate キャッシュの定期更新（起動時ロードのみで長期的に陳腐化）
-- [ ] reach未取得選手（Sherdogに情報なし）の補完ロジック
-- [ ] カスタムドメイン割当
-- [ ] 有料プラン（Stripe連携・詳細分析・通知機能）
 - [x] ~~X公式アカウント開設・運用開始~~（2026-04-10完了：@fight_predict_、プロフィール設定、UFC 327 + RIZIN LM13の予測投稿）
 - [x] ~~note初出品~~（2026-04-10完了：UFC 327 & RIZIN LANDMARK 13 全試合予測レポート 300円）
+- [x] ~~楽天アフィリエイト導入・UFC枠設置~~（2026-04-14完了：isami格闘技用品店アフィURL設置）
+
+### 残タスク（優先順）
+
+**🔴 収益拡大**
+- [ ] Google AdSense申請・設置（note & ツール本体）
+- [ ] 楽天アフィバナーのクリック率測定・A/Bテスト（商品差替え検証）
+- [ ] 有料プラン（Stripe連携・詳細分析・通知機能）
+- [ ] LINE公式アカウント開設
+
+**🟡 運用・品質**
+- [ ] テストスイート整備（バック/フロント共に未整備）
+- [ ] opponent_avg_win_rate キャッシュの定期更新（起動時ロードのみで長期的に陳腐化）
+- [ ] reach未取得選手（Sherdogに情報なし）の補完ロジック
+
+**🟢 インフラ・保留**
+- [ ] カスタムドメイン割当
+- [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
 - [ ] X Bot化で自動投稿（API $200/月のため当面は手動運用）
-- [ ] Google AdSense申請
 - [ ] LINE公式アカウント開設
