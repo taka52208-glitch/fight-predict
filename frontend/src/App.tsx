@@ -562,6 +562,18 @@ function ShareButton({ prediction }: { prediction: Prediction }) {
   );
 }
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+function trackEvent(name: string, params: Record<string, unknown> = {}) {
+  if (typeof window !== "undefined" && typeof window.gtag === "function") {
+    window.gtag("event", name, params);
+  }
+}
+
 function WatchBanner({ org }: { org: "ufc" | "rizin" }) {
   const link = AFFILIATE_LINKS[org];
   return (
@@ -570,6 +582,7 @@ function WatchBanner({ org }: { org: "ufc" | "rizin" }) {
       target="_blank"
       rel="noopener noreferrer"
       className="watch-banner"
+      onClick={() => trackEvent("affiliate_click", { placement: "banner", org, service: link.name })}
     >
       <span className="watch-banner-label">{link.label}</span>
       <span className="watch-banner-service">{link.name}</span>
@@ -744,6 +757,7 @@ function App() {
     setPrediction(null);
     setFighterA(null);
     setFighterB(null);
+    trackEvent("predict_execute", { org });
 
     try {
       const [predRes, faRes, fbRes] = await Promise.all([
@@ -1254,11 +1268,21 @@ function App() {
 
       <footer className="app-footer">
         <div className="footer-links">
-          <a href={AFFILIATE_LINKS.ufc.url} target="_blank" rel="noopener noreferrer">
+          <a
+            href={AFFILIATE_LINKS.ufc.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackEvent("affiliate_click", { placement: "footer", org: "ufc", service: AFFILIATE_LINKS.ufc.name })}
+          >
             {AFFILIATE_LINKS.ufc.footerText}
           </a>
           <span className="footer-sep">|</span>
-          <a href={AFFILIATE_LINKS.rizin.url} target="_blank" rel="noopener noreferrer">
+          <a
+            href={AFFILIATE_LINKS.rizin.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackEvent("affiliate_click", { placement: "footer", org: "rizin", service: AFFILIATE_LINKS.rizin.name })}
+          >
             {AFFILIATE_LINKS.rizin.footerText}
           </a>
         </div>
