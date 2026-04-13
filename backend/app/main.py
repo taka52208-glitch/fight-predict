@@ -173,48 +173,82 @@ async def health():
 @app.get("/admin/debug-scrape")
 async def admin_debug_scrape():
     """Report raw scrape status for upcoming events sources. Public diagnostic (no secrets)."""
-    from app.services.ufc_scraper import fetch_page as ufc_fetch, UPCOMING_URL
+    import socket
+    import httpx
+    from app.services.ufc_scraper import UPCOMING_URL, HEADERS as UFC_HEADERS
     from app.services.rizin_scraper import RIZIN_ORG_URL
     from app.services.rizin_cache import _fetch_page as rizin_fetch
     from bs4 import BeautifulSoup
 
     result = {}
 
-    # UFC
+    # --- UFC diagnostics ---
+    ufc_info: dict = {"url": UPCOMING_URL}
     try:
-        html = await ufc_fetch(UPCOMING_URL)
-        soup = BeautifulSoup(html, "lxml")
-        rows = soup.find_all("tr", class_="b-statistics__table-row")
-        any_rows = len(soup.find_all("tr"))
-        any_links = len(soup.find_all("a"))
-        result["ufc"] = {
-            "ok": True,
-            "url": UPCOMING_URL,
-            "html_len": len(html),
-            "target_rows": len(rows),
-            "any_tr": any_rows,
-            "any_a": any_links,
-            "title": (soup.title.string.strip() if soup.title and soup.title.string else ""),
-            "first_200": html[:200],
-        }
+        ufc_info["dns"] = socket.getaddrinfo("ufcstats.com", 443, proto=socket.IPPROTO_TCP)[0][4][0]
     except Exception as e:
-        result["ufc"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        ufc_info["dns_error"] = f"{type(e).__name__}: {e}"
 
-    # RIZIN
+    try:
+        async with httpx.AsyncClient(timeout=60, headers=UFC_HEADERS, follow_redirects=True) as client:
+            resp = await client.get(UPCOMING_URL)
+            ufc_info["http_status"] = resp.status_code
+            ufc_info["html_len"] = len(resp.text)
+            if resp.text:
+                soup = BeautifulSoup(resp.text, "lxml")
+                rows = soup.find_all("tr", class_="b-statistics__table-row")
+                ufc_info["target_rows"] = len(rows)
+                ufc_info["title"] = (soup.title.string.strip() if soup.title and soup.title.string else "")
+                ufc_info["first_200"] = resp.text[:200]
+            ufc_info["ok"] = True
+    except Exception as e:
+        ufc_info["ok"] = False
+        ufc_info["error"] = f"{type(e).__name__}: {e}"
+
+    # Try UFC alt source (ufc.com) as network sanity check
+    try:
+        async with httpx.AsyncClient(timeout=30, headers=UFC_HEADERS, follow_redirects=True) as client:
+            resp = await client.get("https://www.ufc.com/events")
+            ufc_info["alt_ufc_com_status"] = resp.status_code
+            ufc_info["alt_ufc_com_len"] = len(resp.text)
+    except Exception as e:
+        ufc_info["alt_ufc_com_error"] = f"{type(e).__name__}: {e}"
+
+    result["ufc"] = ufc_info
+
+    # --- RIZIN detailed structure diagnostics ---
+    rizin_info: dict = {"url": RIZIN_ORG_URL}
     try:
         html = await rizin_fetch(RIZIN_ORG_URL)
         soup = BeautifulSoup(html, "lxml")
         tables = soup.find_all("table")
-        result["rizin"] = {
-            "ok": True,
-            "url": RIZIN_ORG_URL,
-            "html_len": len(html),
-            "table_count": len(tables),
-            "title": (soup.title.string.strip() if soup.title and soup.title.string else ""),
-            "first_200": html[:200],
-        }
+        rizin_info["ok"] = True
+        rizin_info["html_len"] = len(html)
+        rizin_info["table_count"] = len(tables)
+        rizin_info["title"] = (soup.title.string.strip() if soup.title and soup.title.string else "")
+        # Inspect each table: row count, first row text, class names
+        table_snapshots = []
+        for i, t in enumerate(tables):
+            trs = t.find_all("tr")
+            first_tr_text = trs[1].get_text(" | ", strip=True)[:200] if len(trs) > 1 else ""
+            header_text = trs[0].get_text(" | ", strip=True)[:200] if trs else ""
+            table_snapshots.append({
+                "index": i,
+                "class": t.get("class") or [],
+                "tr_count": len(trs),
+                "header": header_text,
+                "first_row": first_tr_text,
+            })
+        rizin_info["tables"] = table_snapshots
+        # Also count RIZIN event links (/events/Rizin...)
+        event_links = [a.get("href", "") for a in soup.find_all("a", href=True) if "/events/" in a.get("href", "") and "izin" in a.get_text("", strip=True).lower()]
+        rizin_info["rizin_event_link_count"] = len(event_links)
+        rizin_info["rizin_event_link_sample"] = event_links[:3]
     except Exception as e:
-        result["rizin"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        rizin_info["ok"] = False
+        rizin_info["error"] = f"{type(e).__name__}: {e}"
+
+    result["rizin"] = rizin_info
 
     return result
 
