@@ -259,20 +259,30 @@ async def suggest(q: str = Query(..., max_length=100), org: str = "ufc"):
 
 @app.get("/api/events/upcoming")
 async def upcoming_events(org: str = "all"):
-    """Get upcoming events."""
+    """Get upcoming events.
+
+    Each upstream source is isolated so a failure in one org (network,
+    HTML change, etc.) cannot take down the whole endpoint.
+    """
     events = []
 
     if org in ("all", "ufc"):
-        ufc_events = await get_upcoming_events()
-        for e in ufc_events:
-            e["organization"] = "UFC"
-        events.extend(ufc_events)
+        try:
+            ufc_events = await get_upcoming_events()
+            for e in ufc_events:
+                e["organization"] = "UFC"
+            events.extend(ufc_events)
+        except Exception as e:
+            logger.error(f"UFC upcoming events fetch failed: {e}")
 
     if org in ("all", "rizin"):
-        rizin_events = await get_upcoming_rizin_events()
-        for e in rizin_events:
-            e["organization"] = "RIZIN"
-        events.extend(rizin_events)
+        try:
+            rizin_events = await get_upcoming_rizin_events()
+            for e in rizin_events:
+                e["organization"] = "RIZIN"
+            events.extend(rizin_events)
+        except Exception as e:
+            logger.error(f"RIZIN upcoming events fetch failed: {e}")
 
     return events
 

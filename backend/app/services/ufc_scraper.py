@@ -476,32 +476,44 @@ async def search_fighter(name: str) -> Fighter | None:
 
 
 async def get_upcoming_events() -> list[dict]:
-    """Fetch upcoming UFC events and their fight cards."""
-    html = await fetch_page(UPCOMING_URL)
-    soup = BeautifulSoup(html, "lxml")
+    """Fetch upcoming UFC events and their fight cards.
 
-    events = []
-    rows = soup.find_all("tr", class_="b-statistics__table-row")
+    Returns an empty list on any failure (network error, parsing error, HTML change)
+    so that the API endpoint stays up even when the upstream UFC stats site is down.
+    """
+    try:
+        html = await fetch_page(UPCOMING_URL)
+    except Exception as e:
+        logger.warning(f"Failed to fetch UFC upcoming events page: {e}")
+        return []
 
-    for row in rows:
-        link = row.find("a", class_="b-link")
-        if not link:
-            continue
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        events = []
+        rows = soup.find_all("tr", class_="b-statistics__table-row")
 
-        event_name = link.get_text(strip=True)
-        event_url = link.get("href", "")
+        for row in rows:
+            link = row.find("a", class_="b-link")
+            if not link:
+                continue
 
-        date_col = row.find("span", class_="b-statistics__date")
-        event_date = date_col.get_text(strip=True) if date_col else ""
+            event_name = link.get_text(strip=True)
+            event_url = link.get("href", "")
 
-        if event_name and event_url:
-            events.append({
-                "name": event_name,
-                "date": event_date,
-                "url": event_url,
-            })
+            date_col = row.find("span", class_="b-statistics__date")
+            event_date = date_col.get_text(strip=True) if date_col else ""
 
-    return events
+            if event_name and event_url:
+                events.append({
+                    "name": event_name,
+                    "date": event_date,
+                    "url": event_url,
+                })
+
+        return events
+    except Exception as e:
+        logger.warning(f"Failed to parse UFC upcoming events page: {e}")
+        return []
 
 
 async def get_event_fights(event_url: str) -> list[Fight]:
