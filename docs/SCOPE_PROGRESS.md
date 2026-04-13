@@ -378,7 +378,7 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 
 **🟡 運用・品質**
 - [ ] テストスイート整備（バック/フロント共に未整備）
-- [ ] opponent_avg_win_rate キャッシュの定期更新（起動時ロードのみで長期的に陳腐化）
+- [x] ~~opponent_avg_win_rate キャッシュの定期更新~~（2026-04-14完了：12時間ごとに自動refresh、`/admin/refresh-cache` 手動エンドポイントも追加）
 - [ ] reach未取得選手（Sherdogに情報なし）の補完ロジック
 
 **🟢 インフラ・保留**

@@ -299,12 +299,15 @@ def _english_to_japanese(name: str) -> str:
     return english_to_katakana(name)
 
 
-async def load_rizin_fighters():
-    """Load ALL RIZIN fighters from all events on Sherdog."""
+async def load_rizin_fighters(force: bool = False):
+    """Load ALL RIZIN fighters from all events on Sherdog.
+
+    Pass force=True to refresh even when already loaded.
+    """
     global _rizin_fighters, _cache_loaded
 
     async with _cache_lock:
-        if _cache_loaded:
+        if _cache_loaded and not force:
             return
 
         fighters = {}  # name -> {"name", "jp_name", "katakana", "url"}
@@ -375,7 +378,12 @@ async def load_rizin_fighters():
 
         _rizin_fighters = list(fighters.values())
         _cache_loaded = True
-        logger.info(f"RIZIN fighter cache loaded: {len(_rizin_fighters)} fighters")
+        logger.info(f"RIZIN fighter cache {'refreshed' if force else 'loaded'}: {len(_rizin_fighters)} fighters")
+
+
+async def refresh_rizin_cache():
+    """Force a refresh of the RIZIN fighter cache."""
+    await load_rizin_fighters(force=True)
 
 
 async def suggest_rizin_all(query: str, limit: int = 10) -> list[dict]:

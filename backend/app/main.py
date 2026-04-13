@@ -52,6 +52,9 @@ app.add_middleware(
 
 _startup_status = {"ufc_cache": "pending", "rizin_cache": "pending", "ml_model": "pending"}
 
+# Periodic cache refresh interval (seconds). Default 12h.
+CACHE_REFRESH_INTERVAL = int(os.getenv("CACHE_REFRESH_INTERVAL_SECONDS", "43200"))
+
 
 async def _safe_task(name: str, coro):
     """Run a startup task with error handling and status tracking."""
@@ -65,6 +68,31 @@ async def _safe_task(name: str, coro):
         logger.error(f"Startup task '{name}' failed: {e}")
 
 
+async def _periodic_cache_refresh():
+    """Refresh fighter caches periodically so opponent_avg_win_rate stays current."""
+    from app.services.ufc_scraper import refresh_fighter_cache
+    from app.services.rizin_cache import refresh_rizin_cache
+    from app.services.ml_model import train_model_from_history
+
+    while True:
+        try:
+            await asyncio.sleep(CACHE_REFRESH_INTERVAL)
+            logger.info("Periodic cache refresh started")
+            await refresh_fighter_cache()
+            _startup_status["ufc_cache"] = "ready"
+            await refresh_rizin_cache()
+            _startup_status["rizin_cache"] = "ready"
+            # Retrain ML model against newly refreshed data
+            await train_model_from_history()
+            _startup_status["ml_model"] = "ready"
+            logger.info("Periodic cache refresh completed")
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Periodic cache refresh failed: {e}")
+            _startup_status["ufc_cache"] = f"refresh_failed: {e}"
+
+
 @app.on_event("startup")
 async def startup_preload():
     """Pre-load UFC fighter cache and RIZIN cache at startup (non-blocking)."""
@@ -75,7 +103,8 @@ async def startup_preload():
     asyncio.create_task(_safe_task("ufc_cache", load_fighter_cache()))
     asyncio.create_task(_safe_task("rizin_cache", preload_rizin_cache()))
     asyncio.create_task(_safe_task("ml_model", train_model_from_history()))
-    logger.info("Startup tasks dispatched")
+    asyncio.create_task(_periodic_cache_refresh())
+    logger.info(f"Startup tasks dispatched (cache refresh interval: {CACHE_REFRESH_INTERVAL}s)")
 
 
 def _is_japanese(text: str) -> bool:
@@ -139,6 +168,22 @@ async def health():
         "startup": _startup_status,
         "ml_model": get_model_status(),
     }
+
+
+@app.post("/admin/refresh-cache")
+async def admin_refresh_cache(token: str = Query(...)):
+    """Manually trigger a full cache refresh. Protected by ADMIN_TOKEN env var."""
+    expected = os.getenv("ADMIN_TOKEN")
+    if not expected or token != expected:
+        raise HTTPException(status_code=403, detail="forbidden")
+    from app.services.ufc_scraper import refresh_fighter_cache
+    from app.services.rizin_cache import refresh_rizin_cache
+    from app.services.ml_model import train_model_from_history
+
+    asyncio.create_task(_safe_task("ufc_cache", refresh_fighter_cache()))
+    asyncio.create_task(_safe_task("rizin_cache", refresh_rizin_cache()))
+    asyncio.create_task(_safe_task("ml_model", train_model_from_history()))
+    return {"status": "refresh dispatched"}
 
 
 async def _find_fighter(name: str, org: str):

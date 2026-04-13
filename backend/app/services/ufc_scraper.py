@@ -307,6 +307,7 @@ def _determine_style(fighter_data: dict) -> str:
 _fighter_cache: list[dict] = []
 _cache_loaded = False
 _cache_lock = asyncio.Lock()
+_cache_loaded_at: float = 0.0  # monotonic seconds when the cache was last populated
 
 
 async def _fetch_char_page(char: str) -> list[dict]:
@@ -326,12 +327,15 @@ async def _fetch_char_page(char: str) -> list[dict]:
         return []
 
 
-async def load_fighter_cache():
-    """Load all UFC fighters into memory for fast search."""
-    global _fighter_cache, _cache_loaded
+async def load_fighter_cache(force: bool = False):
+    """Load all UFC fighters into memory for fast search.
+
+    Pass force=True to refresh even when already loaded (used by the periodic refresh task).
+    """
+    global _fighter_cache, _cache_loaded, _cache_loaded_at
 
     async with _cache_lock:
-        if _cache_loaded:
+        if _cache_loaded and not force:
             return
 
         # Parallel fetch for all 26 character pages
@@ -344,7 +348,13 @@ async def load_fighter_cache():
 
         _fighter_cache = all_fighters
         _cache_loaded = True
-        logger.info(f"UFC fighter cache loaded: {len(all_fighters)} fighters")
+        _cache_loaded_at = asyncio.get_event_loop().time()
+        logger.info(f"UFC fighter cache {'refreshed' if force else 'loaded'}: {len(all_fighters)} fighters")
+
+
+async def refresh_fighter_cache():
+    """Force a refresh of the UFC fighter cache."""
+    await load_fighter_cache(force=True)
 
 
 async def suggest_fighters(query: str, limit: int = 10) -> list[dict]:
