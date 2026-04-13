@@ -170,6 +170,55 @@ async def health():
     }
 
 
+@app.get("/admin/debug-scrape")
+async def admin_debug_scrape():
+    """Report raw scrape status for upcoming events sources. Public diagnostic (no secrets)."""
+    from app.services.ufc_scraper import fetch_page as ufc_fetch, UPCOMING_URL
+    from app.services.rizin_scraper import RIZIN_ORG_URL
+    from app.services.rizin_cache import _fetch_page as rizin_fetch
+    from bs4 import BeautifulSoup
+
+    result = {}
+
+    # UFC
+    try:
+        html = await ufc_fetch(UPCOMING_URL)
+        soup = BeautifulSoup(html, "lxml")
+        rows = soup.find_all("tr", class_="b-statistics__table-row")
+        any_rows = len(soup.find_all("tr"))
+        any_links = len(soup.find_all("a"))
+        result["ufc"] = {
+            "ok": True,
+            "url": UPCOMING_URL,
+            "html_len": len(html),
+            "target_rows": len(rows),
+            "any_tr": any_rows,
+            "any_a": any_links,
+            "title": (soup.title.string.strip() if soup.title and soup.title.string else ""),
+            "first_200": html[:200],
+        }
+    except Exception as e:
+        result["ufc"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    # RIZIN
+    try:
+        html = await rizin_fetch(RIZIN_ORG_URL)
+        soup = BeautifulSoup(html, "lxml")
+        tables = soup.find_all("table")
+        result["rizin"] = {
+            "ok": True,
+            "url": RIZIN_ORG_URL,
+            "html_len": len(html),
+            "table_count": len(tables),
+            "title": (soup.title.string.strip() if soup.title and soup.title.string else ""),
+            "first_200": html[:200],
+        }
+    except Exception as e:
+        result["rizin"] = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    return result
+
+
 @app.post("/admin/refresh-cache")
 async def admin_refresh_cache(token: str = Query(...)):
     """Manually trigger a full cache refresh. Protected by ADMIN_TOKEN env var."""
