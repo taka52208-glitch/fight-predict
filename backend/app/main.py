@@ -381,11 +381,7 @@ async def event_fights(org: str, event_url: str):
     if not _validate_event_url(event_url):
         raise HTTPException(status_code=400, detail="無効なイベントURLです")
 
-    if org.lower() == "ufc":
-        fights = await get_event_fights(event_url)
-    else:
-        fights = await get_rizin_event_fights(event_url)
-
+    fights = await _pick_event_fetcher(event_url, org)
     return fights
 
 
@@ -428,20 +424,13 @@ async def predict_event(event_url: str, org: str = "ufc") -> list[Prediction]:
     if not _validate_event_url(event_url):
         raise HTTPException(status_code=400, detail="無効なイベントURLです")
 
-    if org.lower() == "ufc":
-        fights = await get_event_fights(event_url)
-    else:
-        fights = await get_rizin_event_fights(event_url)
+    fights = await _pick_event_fetcher(event_url, org)
 
     predictions = []
     for fight in fights:
         try:
-            if org.lower() == "ufc":
-                fa = await search_fighter(fight.fighter_a)
-                fb = await search_fighter(fight.fighter_b)
-            else:
-                fa = await search_rizin_fighter(fight.fighter_a)
-                fb = await search_rizin_fighter(fight.fighter_b)
+            fa = await _find_fighter(fight.fighter_a, org)
+            fb = await _find_fighter(fight.fighter_b, org)
 
             if fa and fb:
                 pred = calculate_prediction(fa, fb, fight)
@@ -504,16 +493,27 @@ async def pending_predictions() -> list[PredictionRecord]:
 
 # ===== Content Generation (note / X) =====
 
+def _pick_event_fetcher(event_url: str, org: str):
+    """Return (fights_coro, fighter_lookup) based on the URL's domain.
+
+    ufcstats.com is blocked from Render's network, so UFC events are also
+    sourced from Sherdog when the URL points there. _find_fighter() already
+    falls back across sources, so we use it for fighter resolution regardless.
+    """
+    if "sherdog.com" in event_url:
+        return get_rizin_event_fights(event_url)
+    if org.lower() == "ufc":
+        return get_event_fights(event_url)
+    return get_rizin_event_fights(event_url)
+
+
 @app.get("/api/generate/note")
 async def generate_note(event_url: str, org: str = "ufc"):
     """Generate a note article from event predictions."""
     if not _validate_event_url(event_url):
         raise HTTPException(status_code=400, detail="無効なイベントURLです")
 
-    if org.lower() == "ufc":
-        fights = await get_event_fights(event_url)
-    else:
-        fights = await get_rizin_event_fights(event_url)
+    fights = await _pick_event_fetcher(event_url, org)
 
     if not fights:
         raise HTTPException(status_code=404, detail="対戦カードが見つかりません")
@@ -524,12 +524,8 @@ async def generate_note(event_url: str, org: str = "ufc"):
 
     for fight in fights:
         try:
-            if org.lower() == "ufc":
-                fa = await search_fighter(fight.fighter_a)
-                fb = await search_fighter(fight.fighter_b)
-            else:
-                fa = await search_rizin_fighter(fight.fighter_a)
-                fb = await search_rizin_fighter(fight.fighter_b)
+            fa = await _find_fighter(fight.fighter_a, org)
+            fb = await _find_fighter(fight.fighter_b, org)
 
             if fa and fb:
                 pred = calculate_prediction(fa, fb, fight)
@@ -561,10 +557,7 @@ async def generate_x(event_url: str, org: str = "ufc"):
     if not _validate_event_url(event_url):
         raise HTTPException(status_code=400, detail="無効なイベントURLです")
 
-    if org.lower() == "ufc":
-        fights = await get_event_fights(event_url)
-    else:
-        fights = await get_rizin_event_fights(event_url)
+    fights = await _pick_event_fetcher(event_url, org)
 
     if not fights:
         raise HTTPException(status_code=404, detail="対戦カードが見つかりません")
@@ -574,12 +567,8 @@ async def generate_x(event_url: str, org: str = "ufc"):
 
     for fight in fights:
         try:
-            if org.lower() == "ufc":
-                fa = await search_fighter(fight.fighter_a)
-                fb = await search_fighter(fight.fighter_b)
-            else:
-                fa = await search_rizin_fighter(fight.fighter_a)
-                fb = await search_rizin_fighter(fight.fighter_b)
+            fa = await _find_fighter(fight.fighter_a, org)
+            fb = await _find_fighter(fight.fighter_b, org)
 
             if fa and fb:
                 pred = calculate_prediction(fa, fb, fight)
