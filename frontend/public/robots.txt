@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://fight-predict-takas-projects-de61dd0f.vercel.app/sitemap.xml
