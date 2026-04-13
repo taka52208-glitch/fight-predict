@@ -659,18 +659,43 @@ async def get_upcoming_ufc_events_via_sherdog() -> list[dict]:
     return _parse_sherdog_event_tables(html, org_filter="ufc", organization_label="UFC")[:5]
 
 
+def _split_concatenated_name(raw: str) -> str:
+    """Sherdog's <span itemprop=\"name\"> renders first/last with no separator.
+    Example: 'KylerPhillips' -> 'Kyler Phillips'. Apply camel-case split while
+    preserving already-spaced names.
+    """
+    if not raw:
+        return raw
+    # Insert space between lowercase+uppercase boundary
+    fixed = re.sub(r"([a-z])([A-Z])", r"\1 \2", raw)
+    # Also handle dotted initials like "J.J.Aldrich" -> "J.J. Aldrich"
+    fixed = re.sub(r"(\.)([A-Z][a-z])", r"\1 \2", fixed)
+    # Collapse multiple spaces
+    fixed = re.sub(r"\s+", " ", fixed).strip()
+    return fixed
+
+
 async def get_rizin_event_fights(event_url: str) -> list[Fight]:
-    """Get fight card for a RIZIN event from Sherdog."""
+    """Get fight card for a Sherdog-hosted event (RIZIN or UFC)."""
     html = await fetch_page(event_url)
     soup = BeautifulSoup(html, "lxml")
 
-    fights = []
+    fights: list[Fight] = []
 
     title_tag = soup.find("h1")
     event_name = title_tag.get_text(strip=True) if title_tag else ""
 
     date_tag = soup.find("meta", itemprop="startDate")
     event_date = date_tag["content"] if date_tag and date_tag.get("content") else ""
+
+    # Decide organization from the event title so UFC events hosted on
+    # Sherdog don't get mislabeled as RIZIN.
+    org_label = "RIZIN"
+    title_lower = (event_name or event_url).lower()
+    if "ufc" in title_lower:
+        org_label = "UFC"
+    elif "rizin" in title_lower:
+        org_label = "RIZIN"
 
     fight_rows = soup.find_all("tr", itemprop="subEvent")
     if not fight_rows:
@@ -682,15 +707,15 @@ async def get_rizin_event_fights(event_url: str) -> list[Fight]:
             fighters = row.find_all("a", class_="fighter-name")
 
         if len(fighters) >= 2:
-            fighter_a = fighters[0].get_text(strip=True)
-            fighter_b = fighters[1].get_text(strip=True)
+            fighter_a = _split_concatenated_name(fighters[0].get_text(strip=True))
+            fighter_b = _split_concatenated_name(fighters[1].get_text(strip=True))
 
             fights.append(Fight(
                 event_name=event_name,
                 event_date=event_date,
                 fighter_a=fighter_a,
                 fighter_b=fighter_b,
-                organization="RIZIN",
+                organization=org_label,
             ))
 
     return fights
