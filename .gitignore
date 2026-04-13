@@ -27,3 +27,6 @@ Thumbs.db
 
 # Runtime data (ephemeral on Render)
 backend/data/
+
+# Claude Code local state
+.claude/
