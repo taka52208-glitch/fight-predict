@@ -2,8 +2,8 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v4完成＋マネタイズ二本柱稼働中（ABEMAアフィ＋楽天アフィ）
-- **進捗率**: 100%（v4）／マネタイズ稼働中
+- **ステータス**: v4完成＋マネタイズ基盤構築完了（ABEMA/楽天アフィ＋AdSense審査中＋GA4計測）
+- **進捗率**: 100%（v4）／マネタイズ稼働中／収益最適化フェーズ
 - **最終更新日**: 2026-04-14
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
 - **APIエンドポイント**: https://fight-predict-api.onrender.com
@@ -367,12 +367,18 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~X公式アカウント開設・運用開始~~（2026-04-10完了：@fight_predict_、プロフィール設定、UFC 327 + RIZIN LM13の予測投稿）
 - [x] ~~note初出品~~（2026-04-10完了：UFC 327 & RIZIN LANDMARK 13 全試合予測レポート 300円）
 - [x] ~~楽天アフィリエイト導入・UFC枠設置~~（2026-04-14完了：isami格闘技用品店アフィURL設置）
+- [x] ~~Google AdSense申請用サイト整備~~（2026-04-14完了：プライバシーポリシー・運営者情報モーダル・検証スクリプト設置、ca-pub-3165615110181779 で審査リクエスト送信済み）
+- [x] ~~Google Analytics 4 導入~~（2026-04-14完了：G-25CFK5L8C4 設置、affiliate_click/predict_execute イベント計測開始）
+- [x] ~~Google Search Console 登録・sitemap送信~~（2026-04-14完了）
+- [x] ~~SEO対策（メタタグ最適化・JSON-LD・robots.txt・sitemap.xml）~~（2026-04-14完了）
+- [x] ~~UFC/RIZIN upcoming events の本番500エラー修正~~（2026-04-14完了：ufcstats.comがRenderからTCP接続拒否されていたためSherdog UFC-2 orgページへフォールバック、RIZINパーサーのセル位置バグも同時修正）
 
 ### 残タスク（優先順）
 
-**🔴 収益拡大**
-- [ ] Google AdSense申請・設置（note & ツール本体）
-- [ ] 楽天アフィバナーのクリック率測定・A/Bテスト（商品差替え検証）
+**🔴 収益拡大（審査・待機系）**
+- [ ] AdSense審査結果待ち（2026-04-14申請、通常1〜2週間）
+- [ ] 次の大会のnote事前記事公開（UFC/RIZINの直近大会を自動生成機能で量産）
+- [ ] 楽天アフィバナーのクリック率測定・A/Bテスト（GA4データ蓄積後）
 - [ ] 有料プラン（Stripe連携・詳細分析・通知機能）
 - [ ] LINE公式アカウント開設
 
@@ -385,4 +391,4 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [ ] カスタムドメイン割当
 - [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
 - [ ] X Bot化で自動投稿（API $200/月のため当面は手動運用）
-- [ ] LINE公式アカウント開設
+- [ ] ml_model 再学習の安定化（`ready: false, status: failed` が散見、履歴不足時のフォールバック強化）
