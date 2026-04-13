@@ -562,40 +562,101 @@ async def search_rizin_fighter(name: str) -> Fighter | None:
     return fighter
 
 
+def _parse_sherdog_event_date(text: str):
+    """Parse a Sherdog-style date cell like 'May 10 2026' into a datetime (or None)."""
+    from datetime import datetime
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"([A-Za-z]+)\s*(\d{1,2})\s*,?\s*(\d{4})", r"\1 \2 \3", text)
+    m = re.search(r"([A-Za-z]{3,9})\s+(\d{1,2})\s+(\d{4})", text)
+    if not m:
+        return None
+    try:
+        return datetime.strptime(f"{m.group(1)[:3]} {m.group(2)} {m.group(3)}", "%b %d %Y")
+    except ValueError:
+        return None
+
+
+def _parse_sherdog_event_tables(html: str, org_filter: str, organization_label: str) -> list[dict]:
+    """Extract upcoming (future-dated) events from a Sherdog organization page HTML.
+
+    Sherdog row layout: cells[0]=date, cells[1]=title (event link), cells[2]=location.
+    Past events live in the same-classed table, so we filter by parsing the date
+    and keeping only those on/after today.
+    """
+    from datetime import datetime
+
+    soup = BeautifulSoup(html, "lxml")
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    events: list[dict] = []
+    seen: set[str] = set()
+
+    tables = soup.find_all("table", class_="new_table")
+    for table in tables:
+        for row in table.find_all("tr"):
+            cells = row.find_all("td")
+            if len(cells) < 2:
+                continue
+
+            link = None
+            # Prefer cells[1] (title cell) but fall back to any cell with an /events/ link
+            for c in (cells[1:] + cells[:1]):
+                a = c.find("a", href=lambda h: h and "/events/" in h)
+                if a:
+                    link = a
+                    break
+            if not link:
+                continue
+
+            event_name = link.get_text(strip=True)
+            if org_filter and org_filter not in event_name.lower():
+                continue
+
+            href = link.get("href", "")
+            event_url = SHERDOG_BASE + href if href.startswith("/") else href
+
+            date_text = cells[0].get_text(" ", strip=True)
+            parsed = _parse_sherdog_event_date(date_text)
+            if not parsed or parsed < today:
+                continue  # past or unparseable → skip
+
+            if event_url in seen:
+                continue
+            seen.add(event_url)
+
+            events.append({
+                "name": event_name,
+                "date": date_text,
+                "url": event_url,
+                "organization": organization_label,
+            })
+
+    def _sort_key(e):
+        d = _parse_sherdog_event_date(e["date"])
+        return d or datetime.max
+    events.sort(key=_sort_key)
+    return events
+
+
 async def get_upcoming_rizin_events() -> list[dict]:
     """Get upcoming RIZIN events from Sherdog."""
     try:
         html = await fetch_page(RIZIN_ORG_URL)
     except Exception:
         return []
+    return _parse_sherdog_event_tables(html, org_filter="rizin", organization_label="RIZIN")[:5]
 
-    soup = BeautifulSoup(html, "lxml")
 
-    events = []
-    tables = soup.find_all("table")
-    for table in tables:
-        rows = table.find_all("tr")
-        for row in rows:
-            cells = row.find_all("td")
-            if len(cells) < 2:
-                continue
-            link = cells[0].find("a")
-            if not link:
-                continue
+UFC_SHERDOG_URL = "https://www.sherdog.com/organizations/Ultimate-Fighting-Championship-UFC-2"
 
-            event_name = link.get_text(strip=True)
-            href = link.get("href", "")
-            event_url = SHERDOG_BASE + href if href.startswith("/") else href
-            event_date = cells[1].get_text(strip=True) if len(cells) > 1 else ""
 
-            if "rizin" in event_name.lower():
-                events.append({
-                    "name": event_name,
-                    "date": event_date,
-                    "url": event_url,
-                })
-
-    return events[:5]
+async def get_upcoming_ufc_events_via_sherdog() -> list[dict]:
+    """Fallback UFC upcoming events source — Sherdog UFC page (when ufcstats.com is unreachable)."""
+    try:
+        html = await fetch_page(UFC_SHERDOG_URL)
+    except Exception:
+        return []
+    return _parse_sherdog_event_tables(html, org_filter="ufc", organization_label="UFC")[:5]
 
 
 async def get_rizin_event_fights(event_url: str) -> list[Fight]:

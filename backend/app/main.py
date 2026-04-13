@@ -18,6 +18,7 @@ from app.services.rizin_scraper import (
     suggest_rizin_fighters,
     get_upcoming_rizin_events,
     get_rizin_event_fights,
+    get_upcoming_ufc_events_via_sherdog,
 )
 from app.services.rizin_cache import suggest_rizin_all, get_all_jp_names
 from app.services.predictor import calculate_prediction
@@ -352,8 +353,12 @@ async def upcoming_events(org: str = "all"):
     if org in ("all", "ufc"):
         try:
             ufc_events = await get_upcoming_events()
+            # ufcstats.com is blocked from Render's network → fall back to Sherdog UFC page
+            if not ufc_events:
+                logger.info("ufcstats.com returned no events — trying Sherdog UFC fallback")
+                ufc_events = await get_upcoming_ufc_events_via_sherdog()
             for e in ufc_events:
-                e["organization"] = "UFC"
+                e.setdefault("organization", "UFC")
             events.extend(ufc_events)
         except Exception as e:
             logger.error(f"UFC upcoming events fetch failed: {e}")
