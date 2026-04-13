@@ -400,19 +400,22 @@ function FighterCard({ fighter }: { fighter: Fighter }) {
   );
 }
 
-// アフィリエイトリンク設定（実際のアフィリエイトURLに差し替えてください）
 const AFFILIATE_LINKS = {
   ufc: {
-    name: "U-NEXT",
-    url: "https://www.video.unext.jp/?ref=fight-predict",
-    description: "UFCの全試合をライブ配信中",
-    cta: "U-NEXTで観る",
+    name: "楽天市場",
+    url: "https://hb.afl.rakuten.co.jp/ichiba/52d0c10b.15007868.52d0c10c.adcd60ec/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fr-isamishop%2Fuo%2F&link_type=hybrid_url&ut=eyJwYWdlIjoiaXRlbSIsInR5cGUiOiJoeWJyaWRfdXJsIiwic2l6ZSI6IjI0MHgyNDAiLCJuYW0iOjEsIm5hbXAiOiJyaWdodCIsImNvbSI6MSwiY29tcCI6ImRvd24iLCJwcmljZSI6MSwiYm9yIjoxLCJjb2wiOjEsImJidG4iOjEsInByb2QiOjAsImFtcCI6ZmFsc2V9",
+    description: "UFCファイター愛用の格闘技ギアを楽天市場でチェック",
+    cta: "格闘技ギアを見る",
+    label: "この試合に触発されたら",
+    footerText: "楽天で格闘技ギアを探す",
   },
   rizin: {
     name: "ABEMA",
     url: "https://abema.tv/subscription/lp/183c3ec2-c6d8-409e-80b6-caf5a8012f8a?utm_medium=ads&utm_source=afb&_fsi=MFfhS4ax",
     description: "RIZINの試合をライブ配信中",
     cta: "ABEMAで観る",
+    label: "この試合を観るなら",
+    footerText: "ABEMAでRIZINを観る",
   },
 } as const;
 
@@ -568,7 +571,7 @@ function WatchBanner({ org }: { org: "ufc" | "rizin" }) {
       rel="noopener noreferrer"
       className="watch-banner"
     >
-      <span className="watch-banner-label">この試合を観るなら</span>
+      <span className="watch-banner-label">{link.label}</span>
       <span className="watch-banner-service">{link.name}</span>
       <span className="watch-banner-desc">{link.description}</span>
       <span className="watch-banner-cta">{link.cta} &rarr;</span>
@@ -1145,11 +1148,11 @@ function App() {
       <footer className="app-footer">
         <div className="footer-links">
           <a href={AFFILIATE_LINKS.ufc.url} target="_blank" rel="noopener noreferrer">
-            U-NEXTでUFCを観る
+            {AFFILIATE_LINKS.ufc.footerText}
           </a>
           <span className="footer-sep">|</span>
           <a href={AFFILIATE_LINKS.rizin.url} target="_blank" rel="noopener noreferrer">
-            ABEMAでRIZINを観る
+            {AFFILIATE_LINKS.rizin.footerText}
           </a>
         </div>
         <p className="footer-copy">&copy; 2026 FIGHT PREDICT</p>
