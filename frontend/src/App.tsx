@@ -579,6 +579,112 @@ function WatchBanner({ org }: { org: "ufc" | "rizin" }) {
   );
 }
 
+function InfoModal({ view, onClose }: { view: "privacy" | "about"; onClose: () => void }) {
+  return (
+    <div className="info-modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="info-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="info-modal-close" onClick={onClose} aria-label="閉じる">×</button>
+        {view === "privacy" ? (
+          <>
+            <h2>プライバシーポリシー</h2>
+            <p className="info-updated">最終更新日: 2026年4月14日</p>
+
+            <h3>1. 個人情報の取り扱い</h3>
+            <p>
+              FIGHT PREDICT（以下「本サイト」）は、利用者の個人情報を原則として収集しません。
+              選手名の検索・試合予測機能の利用にあたり、入力された情報はサーバー側でログとして保存されません。
+            </p>
+
+            <h3>2. Cookie・アクセス解析について</h3>
+            <p>
+              本サイトでは、利用状況の把握のためCookieおよびアクセス解析ツールを使用する場合があります。
+              これらは匿名の統計情報であり、個人を特定するものではありません。ブラウザ設定でCookieを無効化することも可能です。
+            </p>
+
+            <h3>3. 広告配信について</h3>
+            <p>
+              本サイトは第三者配信の広告サービス「Google AdSense」を利用する場合があります。
+              広告配信事業者は、ユーザーの興味に応じた商品やサービスの広告を表示するため、
+              当サイトや他サイトへのアクセスに関する情報（氏名、住所、メールアドレス、電話番号は含まれません）を使用することがあります。
+              Googleによる広告Cookieの使用は、ユーザーが
+              {" "}
+              <a href="https://adssettings.google.com/" target="_blank" rel="noopener noreferrer">Google広告設定</a>
+              {" "}
+              で無効にできます。
+            </p>
+
+            <h3>4. アフィリエイトプログラムについて</h3>
+            <p>
+              本サイトは、以下のアフィリエイトプログラムに参加しています。
+            </p>
+            <ul>
+              <li>楽天アフィリエイト（楽天市場の商品紹介）</li>
+              <li>afb（ABEMA等の動画配信サービス紹介）</li>
+            </ul>
+            <p>
+              本サイト経由で商品・サービスが購入された場合、販売元から紹介料を受け取ることがあります。
+              ただし、掲載内容は運営者の客観的な判断に基づいており、紹介料の有無が推奨内容に影響することはありません。
+            </p>
+
+            <h3>5. 予測結果の正確性について</h3>
+            <p>
+              本サイトが提供する試合予測は、公開統計データと機械学習モデルに基づく参考情報であり、
+              結果を保証するものではありません。ギャンブル等の意思決定に利用する場合は自己責任でお願いいたします。
+            </p>
+
+            <h3>6. 免責事項</h3>
+            <p>
+              本サイトのコンテンツ・情報につきまして、可能な限り正確な情報を掲載するよう努めておりますが、
+              誤情報が入り込んだり、情報が古くなっている場合がございます。本サイトに掲載された内容によって生じた損害等の一切の責任を負いかねますのでご了承ください。
+            </p>
+
+            <h3>7. お問い合わせ</h3>
+            <p>
+              本ポリシーに関するお問い合わせは、公式X（旧Twitter）アカウント
+              {" "}
+              <a href="https://x.com/fight_predict_" target="_blank" rel="noopener noreferrer">@fight_predict_</a>
+              {" "}
+              までDMにてご連絡ください。
+            </p>
+          </>
+        ) : (
+          <>
+            <h2>このサイトについて</h2>
+
+            <h3>FIGHT PREDICT とは</h3>
+            <p>
+              FIGHT PREDICT は、UFC・RIZINの格闘技試合をAI（17項目スコアリング＋機械学習モデル）で予測する無料ツールです。
+              公開統計データを基に、勝敗確率・決着方法・予測根拠を提示します。
+            </p>
+
+            <h3>主な機能</h3>
+            <ul>
+              <li>選手名2人を入力するだけで勝敗予測</li>
+              <li>大会（UFC/RIZIN）の全試合を一括予測</li>
+              <li>過去予測の的中率トラッキング</li>
+              <li>予測結果のSNS共有用画像生成</li>
+              <li>note記事・X投稿の自動コンテンツ生成</li>
+            </ul>
+
+            <h3>データソース</h3>
+            <ul>
+              <li>UFCstats.com（UFC選手・試合データ）</li>
+              <li>Sherdog（RIZIN・総合格闘技データ）</li>
+            </ul>
+
+            <h3>運営情報</h3>
+            <p>
+              運営: FIGHT PREDICT<br />
+              公式X: <a href="https://x.com/fight_predict_" target="_blank" rel="noopener noreferrer">@fight_predict_</a><br />
+              お問い合わせ: 上記X公式アカウントまでDM
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [fighterAName, setFighterAName] = useState("");
   const [fighterBName, setFighterBName] = useState("");
@@ -591,6 +697,7 @@ function App() {
   const [events, setEvents] = useState<UpcomingEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"predict" | "events" | "accuracy">("predict");
+  const [infoModal, setInfoModal] = useState<"privacy" | "about" | null>(null);
   const [wakingUp, setWakingUp] = useState(false);
   const [eventPredictions, setEventPredictions] = useState<EventPrediction[]>([]);
   const [eventPredLoading, setEventPredLoading] = useState(false);
@@ -1155,8 +1262,16 @@ function App() {
             {AFFILIATE_LINKS.rizin.footerText}
           </a>
         </div>
+        <div className="footer-links footer-info">
+          <button type="button" className="footer-link-btn" onClick={() => setInfoModal("about")}>このサイトについて</button>
+          <span className="footer-sep">|</span>
+          <button type="button" className="footer-link-btn" onClick={() => setInfoModal("privacy")}>プライバシーポリシー</button>
+          <span className="footer-sep">|</span>
+          <a href="https://x.com/fight_predict_" target="_blank" rel="noopener noreferrer">お問い合わせ</a>
+        </div>
         <p className="footer-copy">&copy; 2026 FIGHT PREDICT</p>
       </footer>
+      {infoModal && <InfoModal view={infoModal} onClose={() => setInfoModal(null)} />}
     </div>
   );
 }
