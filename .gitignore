@@ -30,3 +30,6 @@ backend/data/
 
 # Claude Code local state
 .claude/
+
+# Locally generated content drafts (note articles / X posts)
+generated_articles/
