@@ -372,6 +372,9 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~Google Search Console 登録・sitemap送信~~（2026-04-14完了）
 - [x] ~~SEO対策（メタタグ最適化・JSON-LD・robots.txt・sitemap.xml）~~（2026-04-14完了）
 - [x] ~~UFC/RIZIN upcoming events の本番500エラー修正~~（2026-04-14完了：ufcstats.comがRenderからTCP接続拒否されていたためSherdog UFC-2 orgページへフォールバック、RIZINパーサーのセル位置バグも同時修正）
+- [x] ~~選手名camelCase分割とorganization自動判定~~（2026-04-14完了：Sherdog `<span itemprop="name">` の結合名を分離、イベントタイトルからorg判定）
+- [x] ~~イベント系エンドポイントのSherdog URL対応~~（2026-04-14完了：/api/generate/note, /api/generate/x-posts, /api/predict/event, /api/events/.../fights をURLベース分岐に統一）
+- [x] ~~ml_model の ufcstats 依存を廃止し Sherdog 訓練化~~（2026-04-14完了：Sherdog UFC-2 org の過去5イベントから訓練、クラス不均衡対策にランダム左右入替、model fileをリポジトリにコミット）
 
 ### 残タスク（優先順）
 
@@ -391,4 +394,3 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [ ] カスタムドメイン割当
 - [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
 - [ ] X Bot化で自動投稿（API $200/月のため当面は手動運用）
-- [ ] ml_model 再学習の安定化（`ready: false, status: failed` が散見、履歴不足時のフォールバック強化）
