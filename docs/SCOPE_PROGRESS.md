@@ -4,7 +4,7 @@
 
 - **ステータス**: v4完成＋マネタイズ基盤構築完了（ABEMA/楽天アフィ＋AdSense審査中＋GA4計測）
 - **進捗率**: 100%（v4）／マネタイズ稼働中／収益最適化フェーズ
-- **最終更新日**: 2026-04-14
+- **最終更新日**: 2026-04-19
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
 - **APIエンドポイント**: https://fight-predict-api.onrender.com
 - **GitHub**: https://github.com/taka52208-glitch/fight-predict
@@ -375,6 +375,10 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~選手名camelCase分割とorganization自動判定~~（2026-04-14完了：Sherdog `<span itemprop="name">` の結合名を分離、イベントタイトルからorg判定）
 - [x] ~~イベント系エンドポイントのSherdog URL対応~~（2026-04-14完了：/api/generate/note, /api/generate/x-posts, /api/predict/event, /api/events/.../fights をURLベース分岐に統一）
 - [x] ~~ml_model の ufcstats 依存を廃止し Sherdog 訓練化~~（2026-04-14完了：Sherdog UFC-2 org の過去5イベントから訓練、クラス不均衡対策にランダム左右入替、model fileをリポジトリにコミット）
+- [x] ~~X投稿下書きの毎朝Gmail自動配信~~（2026-04-19完了：GitHub Actions `x-daily-drafts.yml` が毎朝8時JSTに `/api/events/upcoming` → `/api/generate/x-posts` を叩いて下書き生成しGmail SMTP送信。依存はstdlibのみ。RECIPIENT未設定時のfallback空文字バグも修正）
+- [x] ~~X投稿フォーマットの280文字対応~~（2026-04-19完了：5試合フルネーム表記で400〜600文字だったmain postを、信頼度上位3試合・苗字のみ・イベント名サブタイトル除去・汎用ハッシュタグ化で約220文字に圧縮）
+- [x] ~~Render再デプロイ時のコールドキャッシュ耐性~~（2026-04-19完了：Actions側タイムアウト150→900秒、30秒間隔×2回リトライ追加。ワークフロー全体は timeout-minutes: 45）
+- [x] ~~Render buildFilter 設定~~（2026-04-19完了：backend/** と render.yaml の変更でのみ再デプロイ。.github/docs/frontend/mockups/*.md は ignoredPaths に指定し、script/workflow 修正でバックエンドが再デプロイされてキャッシュが飛ぶ問題を恒久回避）
 
 ### 残タスク（優先順）
 
@@ -393,5 +397,6 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 **🟢 インフラ・保留**
 - [ ] カスタムドメイン割当
 - [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
-- [x] ~~X投稿下書きの半自動配信~~（2026-04-19完了：GitHub Actionsで毎朝8時JSTに直近7日以内の大会予想を生成しGmailへ送信。`.github/workflows/x-daily-drafts.yml` + `.github/scripts/generate_x_drafts.py`。X API料金回避のため下書き→手動ポスト運用）
 - [ ] X Bot化で完全自動投稿（API pay-per-use $5/月相当、収益が月$5超えたら検討）
+- [ ] 的中ログ自動配信（大会翌日に予想vs結果を比較、Gmail or X投稿）
+- [ ] note事前記事の下書き自動生成（X下書きと同じ仕組みで拡張可能）
