@@ -8,6 +8,7 @@ import os
 import smtplib
 import ssl
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from urllib.parse import quote
@@ -20,13 +21,24 @@ RECIPIENT = os.environ.get("RECIPIENT") or GMAIL_USER
 
 WINDOW_DAYS = 7
 FULL_CARD_WITHIN_DAYS = 2
-TIMEOUT = 150
+# Renderが再デプロイ直後は選手キャッシュが空で24選手のスクレイプに最大10分弱かかる。
+TIMEOUT = 900
+RETRIES = 2
 
 
 def fetch_json(url: str):
-    req = Request(url, headers={"Accept": "application/json"})
-    with urlopen(req, timeout=TIMEOUT) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    last_err = None
+    for attempt in range(RETRIES + 1):
+        try:
+            req = Request(url, headers={"Accept": "application/json"})
+            with urlopen(req, timeout=TIMEOUT) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            last_err = e
+            if attempt < RETRIES:
+                print(f"fetch失敗 (attempt {attempt + 1}/{RETRIES + 1}): {e} → 30秒後リトライ")
+                time.sleep(30)
+    raise last_err
 
 
 def parse_event_date(s: str):
