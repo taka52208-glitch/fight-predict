@@ -6,6 +6,19 @@ services:
     dockerContext: ./backend
     plan: free
     healthCheckPath: /
+    # backend/ に関係ない修正での再デプロイを防ぐ。
+    # 再デプロイするとメモリ内選手キャッシュが飛びコールドスタートが10分近くかかるため。
+    buildFilter:
+      paths:
+        - backend/**
+        - render.yaml
+      ignoredPaths:
+        - .github/**
+        - docs/**
+        - frontend/**
+        - generated_articles/**
+        - mockups/**
+        - "**/*.md"
     envVars:
       - key: ALLOWED_ORIGINS
         # Vercel/Cloudflare Pagesのフロントエンド本番URLをカンマ区切りで指定
