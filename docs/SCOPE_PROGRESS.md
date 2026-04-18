@@ -393,4 +393,5 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 **🟢 インフラ・保留**
 - [ ] カスタムドメイン割当
 - [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
-- [ ] X Bot化で自動投稿（API $200/月のため当面は手動運用）
+- [x] ~~X投稿下書きの半自動配信~~（2026-04-19完了：GitHub Actionsで毎朝8時JSTに直近7日以内の大会予想を生成しGmailへ送信。`.github/workflows/x-daily-drafts.yml` + `.github/scripts/generate_x_drafts.py`。X API料金回避のため下書き→手動ポスト運用）
+- [ ] X Bot化で完全自動投稿（API pay-per-use $5/月相当、収益が月$5超えたら検討）

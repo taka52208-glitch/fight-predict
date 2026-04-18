@@ -1,0 +1,23 @@
+name: x-daily-drafts
+
+# 毎朝8時JSTにX投稿下書きを生成してGmailへ送信する半自動運用。
+# 直近7日以内に大会があるときだけメール送信（対象なしの日はスキップ）。
+on:
+  schedule:
+    - cron: '0 23 * * *'  # 23:00 UTC = 08:00 JST
+  workflow_dispatch:
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate drafts and send email
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT: ${{ secrets.RECIPIENT }}
+        run: python .github/scripts/generate_x_drafts.py
