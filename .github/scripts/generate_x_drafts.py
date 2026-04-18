@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 API_BASE = os.environ.get("API_BASE", "https://fight-predict-api.onrender.com")
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
-RECIPIENT = os.environ.get("RECIPIENT", GMAIL_USER)
+RECIPIENT = os.environ.get("RECIPIENT") or GMAIL_USER
 
 WINDOW_DAYS = 7
 FULL_CARD_WITHIN_DAYS = 2
