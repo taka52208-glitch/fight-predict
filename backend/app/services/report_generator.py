@@ -181,33 +181,40 @@ def generate_x_posts(
     org = predictions[0].fight.organization if predictions else "UFC"
     posts = []
 
-    # Main post (thread starter)
-    main_lines = [f"🥊 {event_name} AI全試合予測", ""]
-    for pred in predictions[:5]:  # first 5 in main post
+    # X無料は280文字制限。メイン投稿は必ず収めるため絞り込む。
+    display_name = event_name.split(" - ")[0]
+    org_tags = {"UFC": "#UFC #MMA", "RIZIN": "#RIZIN #格闘技"}.get(org, "#MMA")
+
+    def _last(name: str) -> str:
+        return name.split()[-1] if " " in name else name
+
+    # Main post: 信頼度の高い上位3試合のみ、苗字表記
+    conf_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    sorted_preds = sorted(predictions, key=lambda p: conf_order.get(p.confidence, 3))
+
+    main_lines = [f"🥊 {display_name} AI予測", ""]
+    for pred in sorted_preds[:3]:
         pct_a = round(pred.fighter_a_win_prob * 100)
         pct_b = round(pred.fighter_b_win_prob * 100)
         winner = pred.fighter_a_name if pct_a >= pct_b else pred.fighter_b_name
         winner_pct = max(pct_a, pct_b)
         emoji = _confidence_emoji(pred.confidence)
-        main_lines.append(f"{emoji} {pred.fighter_a_name} vs {pred.fighter_b_name}")
-        main_lines.append(f"→ {winner} {winner_pct}% ({pred.confidence})")
-        main_lines.append("")
+        main_lines.append(
+            f"{emoji} {_last(pred.fighter_a_name)} vs {_last(pred.fighter_b_name)} → {_last(winner)} {winner_pct}%"
+        )
 
-    main_lines.append("全カード詳細予測はこちら👇")
+    main_lines.append("")
+    main_lines.append("全試合詳細👇")
     main_lines.append("https://fight-predict-takas-projects-de61dd0f.vercel.app")
     main_lines.append("")
-
-    # Hashtags
-    event_tag = event_name.replace(" ", "").replace(":", "")
-    org_tags = {"UFC": "#UFC #MMA", "RIZIN": "#RIZIN #格闘技"}.get(org, "#MMA")
-    main_lines.append(f"#{event_tag} {org_tags} #FightPredict")
+    main_lines.append(f"{org_tags} #FightPredict")
 
     posts.append({
         "text": "\n".join(main_lines),
         "type": "main",
     })
 
-    # Individual card posts (for thread replies or separate posts)
+    # 個別カード投稿はフルネーム（1試合1投稿なので文字数余裕あり）
     for pred in predictions:
         pct_a = round(pred.fighter_a_win_prob * 100)
         pct_b = round(pred.fighter_b_win_prob * 100)
@@ -227,7 +234,7 @@ def generate_x_posts(
             card_lines.append(real_factors[0])
             card_lines.append("")
 
-        card_lines.append(f"#{event_tag} {org_tags} #FightPredict")
+        card_lines.append(f"{org_tags} #FightPredict")
 
         posts.append({
             "text": "\n".join(card_lines),
