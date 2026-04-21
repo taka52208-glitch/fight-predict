@@ -384,13 +384,14 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~週次的中サマリーのX投稿下書き自動配信~~（2026-04-22完了：`/api/generate/weekly-stats` 新設＋ `x-weekly-stats.yml` が毎週月曜8時JSTに実行。累計的中数／HIGH・MEDIUM・LOW別の的中率を整形してGmail送信。結果0件の週はスキップ。X運用でバズ狙いの的中実績投稿ネタを継続供給するのが狙い）
 - [x] ~~予測履歴のGitHubリポジトリ永続化~~（2026-04-22完了：`backup-predictions.yml` が2時間ごとに `/api/predictions/export` を叩いて `backend/data/prediction_history.json` にコミット。Dockerfileで `COPY data ./data` 追加し、Render再デプロイ時に直近バックアップから履歴を復元。`render.yaml` の ignoredPaths に `backend/data/**` を入れて履歴コミットでは再デプロイしないよう防護。これまでRenderのFSリセットで的中履歴が毎回消えていた根本問題を解決）
 - [x] ~~UFC Fight Night 274 のnote事前記事原稿生成~~（2026-04-22完了：`/api/generate/note` を叩いて `generated_articles/UFC_Fight_Night_274.md` に保存。全11試合予測／無料2試合＋有料9試合構成／6,432文字。note.com公開は手動貼り付け）
+- [x] ~~UFC Fight Night 274 のnote全文無料版＋サムネ生成＆公開~~（2026-04-22完了：戦略転換により有料ゲート撤去、絵文字・ASCII確率バー削除、末尾にサイト&Xへの誘導CTA追加。`generated_articles/UFC_Fight_Night_274_free.md` 6,120文字／278行。Chrome headless で 1280×670 のダークテーマサムネイルも同時生成（`_thumbnail.png`）。note.comに公開済み）
 
 ### 残タスク（優先順）
 
 **🔴 収益拡大（審査・待機系）**
 - [ ] AdSense審査結果待ち（2026-04-14申請、2026-04-22時点で「準備中」継続中。通常1〜2週間、最大数週間。ads.txt は事前設置済）
 - [ ] AdSense承認後の広告ユニット配置設計・設置（ヘッダー直下／予測結果下／フッター近辺の候補）
-- [ ] 次の大会のnote事前記事公開（UFC Fight Night 274の原稿は2026-04-22生成済、**公開待ち**。UFC 275/328 や RIZIN 53 も同じ仕組みで生成可能）
+- [ ] 次の大会のnote事前記事公開（UFC Fight Night 274は2026-04-22公開済み。次は UFC Fight Night 275（5/2）／UFC 328（5/9）／RIZIN 53（5/10）／Rizin Landmark 14（6/6）を同じ仕組みで量産）
 - [ ] 楽天アフィバナーのクリック率測定・A/Bテスト（GA4データ蓄積後）
 - [ ] 有料プラン（Stripe連携・詳細分析・通知機能）
 - [ ] LINE公式アカウント開設
