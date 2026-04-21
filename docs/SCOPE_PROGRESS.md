@@ -386,6 +386,7 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~UFC Fight Night 274 のnote事前記事原稿生成~~（2026-04-22完了：`/api/generate/note` を叩いて `generated_articles/UFC_Fight_Night_274.md` に保存。全11試合予測／無料2試合＋有料9試合構成／6,432文字。note.com公開は手動貼り付け）
 - [x] ~~UFC Fight Night 274 のnote全文無料版＋サムネ生成＆公開~~（2026-04-22完了：戦略転換により有料ゲート撤去、絵文字・ASCII確率バー削除、末尾にサイト&Xへの誘導CTA追加。`generated_articles/UFC_Fight_Night_274_free.md` 6,120文字／278行。Chrome headless で 1280×670 のダークテーマサムネイルも同時生成（`_thumbnail.png`）。note.comに公開済み）
 - [x] ~~note公開告知用X投稿テンプレのGmail下書き作成~~（2026-04-22完了：3パターン（ストレート／疑問形／データ特化）＋セルフリプ文＋運用Tipsを下書きに保存。X告知→引用RT→エンゲージ返しの動線付き）
+- [x] ~~UFC Fight Night 274 note記事のX告知投稿~~（2026-04-22完了：@fight_predict_ からnote URL付きで告知投稿。インプレッション・notePV・サイト流入の計測開始）
 
 ### 残タスク（優先順）
 
