@@ -385,6 +385,7 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~予測履歴のGitHubリポジトリ永続化~~（2026-04-22完了：`backup-predictions.yml` が2時間ごとに `/api/predictions/export` を叩いて `backend/data/prediction_history.json` にコミット。Dockerfileで `COPY data ./data` 追加し、Render再デプロイ時に直近バックアップから履歴を復元。`render.yaml` の ignoredPaths に `backend/data/**` を入れて履歴コミットでは再デプロイしないよう防護。これまでRenderのFSリセットで的中履歴が毎回消えていた根本問題を解決）
 - [x] ~~UFC Fight Night 274 のnote事前記事原稿生成~~（2026-04-22完了：`/api/generate/note` を叩いて `generated_articles/UFC_Fight_Night_274.md` に保存。全11試合予測／無料2試合＋有料9試合構成／6,432文字。note.com公開は手動貼り付け）
 - [x] ~~UFC Fight Night 274 のnote全文無料版＋サムネ生成＆公開~~（2026-04-22完了：戦略転換により有料ゲート撤去、絵文字・ASCII確率バー削除、末尾にサイト&Xへの誘導CTA追加。`generated_articles/UFC_Fight_Night_274_free.md` 6,120文字／278行。Chrome headless で 1280×670 のダークテーマサムネイルも同時生成（`_thumbnail.png`）。note.comに公開済み）
+- [x] ~~note公開告知用X投稿テンプレのGmail下書き作成~~（2026-04-22完了：3パターン（ストレート／疑問形／データ特化）＋セルフリプ文＋運用Tipsを下書きに保存。X告知→引用RT→エンゲージ返しの動線付き）
 
 ### 残タスク（優先順）
 
