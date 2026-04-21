@@ -2,7 +2,7 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v4完成＋マネタイズ基盤構築完了＋X下書き自動配信稼働＋日次X運用フェーズ開始
+- **ステータス**: v4完成＋マネタイズ基盤構築完了＋X下書き日替わりローテーション配信＋週次的中サマリー自動配信＋予測履歴永続化＋日次X運用フェーズ
 - **進捗率**: 100%（v4）／マネタイズ稼働中／X日次運用フェーズ（1日1投稿継続）
 - **最終更新日**: 2026-04-22
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
@@ -382,6 +382,7 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~X下書きメールの日替わりローテーション~~（2026-04-22完了：7日前=main / 6〜1日前=cards[0..5]を1枚ずつ / 当日=main という仕様に修正。以前は3〜7日前が毎日同じmain投稿、0〜2日前は全カードダンプで日次運用になっていなかった）
 - [x] ~~ads.txt 事前設置~~（2026-04-22完了：`frontend/public/ads.txt` に `google.com, pub-3165615110181779, DIRECT, f08c47fec0942fa0` を配置。AdSense承認後すぐに広告配信できるよう先行準備）
 - [x] ~~週次的中サマリーのX投稿下書き自動配信~~（2026-04-22完了：`/api/generate/weekly-stats` 新設＋ `x-weekly-stats.yml` が毎週月曜8時JSTに実行。累計的中数／HIGH・MEDIUM・LOW別の的中率を整形してGmail送信。結果0件の週はスキップ。X運用でバズ狙いの的中実績投稿ネタを継続供給するのが狙い）
+- [x] ~~予測履歴のGitHubリポジトリ永続化~~（2026-04-22完了：`backup-predictions.yml` が2時間ごとに `/api/predictions/export` を叩いて `backend/data/prediction_history.json` にコミット。Dockerfileで `COPY data ./data` 追加し、Render再デプロイ時に直近バックアップから履歴を復元。`render.yaml` の ignoredPaths に `backend/data/**` を入れて履歴コミットでは再デプロイしないよう防護。これまでRenderのFSリセットで的中履歴が毎回消えていた根本問題を解決）
 
 ### 残タスク（優先順）
 
