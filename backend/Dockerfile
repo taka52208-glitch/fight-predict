@@ -11,6 +11,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+# 予測履歴はリポジトリ側にコミットされているので起動時に読み込む
+COPY data ./data
 
 # Render sets $PORT; default 8000 for local
 ENV PORT=8000

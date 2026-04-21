@@ -26,7 +26,10 @@ Thumbs.db
 .idea/
 
 # Runtime data (ephemeral on Render)
-backend/data/
+# prediction_history.json は GitHub Actions で定期バックアップして
+# 永続化するため追跡対象。その他の一時ファイルがあれば個別追加すること
+backend/data/*.log
+backend/data/*.tmp
 
 # Claude Code local state
 .claude/

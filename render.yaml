@@ -19,6 +19,8 @@ services:
         - generated_articles/**
         - mockups/**
         - "**/*.md"
+        # 予測履歴の自動バックアップは内容変化だけなので再デプロイ不要
+        - backend/data/**
     envVars:
       - key: ALLOWED_ORIGINS
         # Vercel/Cloudflare Pagesのフロントエンド本番URLをカンマ区切りで指定
