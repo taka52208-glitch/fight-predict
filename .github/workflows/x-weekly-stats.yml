@@ -1,0 +1,23 @@
+name: x-weekly-stats
+
+# 毎週月曜朝8時JSTに週次的中サマリーのX投稿下書きを生成してGmailへ送信。
+on:
+  schedule:
+    - cron: '0 23 * * 0'  # Sunday 23:00 UTC = Monday 08:00 JST
+  workflow_dispatch:
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate weekly stats and send email
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT: ${{ secrets.RECIPIENT }}
+        run: python .github/scripts/generate_weekly_stats.py

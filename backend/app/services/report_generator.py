@@ -1,6 +1,8 @@
 """Generate note articles and X (Twitter) posts from event predictions."""
 
-from app.models.fighter import Prediction, Fighter
+from app.models.fighter import Prediction, Fighter, AccuracyStats
+
+SITE_URL = "https://fight-predict-takas-projects-de61dd0f.vercel.app"
 
 
 def _confidence_emoji(conf: str) -> str:
@@ -242,3 +244,47 @@ def generate_x_posts(
         })
 
     return posts
+
+
+def generate_weekly_stats_post(stats: AccuracyStats) -> dict:
+    """Generate an X post summarizing prediction accuracy.
+
+    Returns {"text": str, "type": "weekly_stats", "total": int}.
+    If there's no resolved prediction yet, returns a placeholder post
+    so the caller can skip sending.
+    """
+    if stats.total == 0:
+        return {
+            "text": "",
+            "type": "weekly_stats",
+            "total": 0,
+        }
+
+    acc_pct = round(stats.accuracy * 100)
+    lines = [
+        "🥊 FIGHT PREDICT 的中実績アップデート",
+        "",
+        f"累計: {stats.correct}/{stats.total}的中 ({acc_pct}%)",
+    ]
+
+    for level in ("HIGH", "MEDIUM", "LOW"):
+        data = stats.by_confidence.get(level)
+        if not data:
+            continue
+        pct = round(data["accuracy"] * 100)
+        label = {"HIGH": "🔴HIGH", "MEDIUM": "🟡MEDIUM", "LOW": "⚪LOW"}[level]
+        lines.append(f"{label}: {data['correct']}/{data['total']} ({pct}%)")
+
+    lines += [
+        "",
+        "次の大会予測はこちら👇",
+        SITE_URL,
+        "",
+        "#UFC #MMA #RIZIN #FightPredict",
+    ]
+
+    return {
+        "text": "\n".join(lines),
+        "type": "weekly_stats",
+        "total": stats.total,
+    }

@@ -381,6 +381,7 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~Render buildFilter 設定~~（2026-04-19完了：backend/** と render.yaml の変更でのみ再デプロイ。.github/docs/frontend/mockups/*.md は ignoredPaths に指定し、script/workflow 修正でバックエンドが再デプロイされてキャッシュが飛ぶ問題を恒久回避）
 - [x] ~~X下書きメールの日替わりローテーション~~（2026-04-22完了：7日前=main / 6〜1日前=cards[0..5]を1枚ずつ / 当日=main という仕様に修正。以前は3〜7日前が毎日同じmain投稿、0〜2日前は全カードダンプで日次運用になっていなかった）
 - [x] ~~ads.txt 事前設置~~（2026-04-22完了：`frontend/public/ads.txt` に `google.com, pub-3165615110181779, DIRECT, f08c47fec0942fa0` を配置。AdSense承認後すぐに広告配信できるよう先行準備）
+- [x] ~~週次的中サマリーのX投稿下書き自動配信~~（2026-04-22完了：`/api/generate/weekly-stats` 新設＋ `x-weekly-stats.yml` が毎週月曜8時JSTに実行。累計的中数／HIGH・MEDIUM・LOW別の的中率を整形してGmail送信。結果0件の週はスキップ。X運用でバズ狙いの的中実績投稿ネタを継続供給するのが狙い）
 
 ### 残タスク（優先順）
 

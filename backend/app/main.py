@@ -30,7 +30,11 @@ from app.services.prediction_tracker import (
     export_history,
     import_history,
 )
-from app.services.report_generator import generate_note_article, generate_x_posts
+from app.services.report_generator import (
+    generate_note_article,
+    generate_weekly_stats_post,
+    generate_x_posts,
+)
 from app.services.name_mapping import get_romaji_query
 
 logger = logging.getLogger(__name__)
@@ -582,6 +586,13 @@ async def generate_x(event_url: str, org: str = "ufc"):
 
     posts = generate_x_posts(event_name, predictions)
     return posts
+
+
+@app.get("/api/generate/weekly-stats")
+async def generate_weekly_stats():
+    """Generate an X post summarizing overall prediction accuracy."""
+    stats = get_accuracy_stats()
+    return generate_weekly_stats_post(stats)
 
 
 # ===== Data Export / Import (backup for ephemeral storage) =====
