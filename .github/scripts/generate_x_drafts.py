@@ -20,7 +20,6 @@ GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
 RECIPIENT = os.environ.get("RECIPIENT") or GMAIL_USER
 
 WINDOW_DAYS = 7
-FULL_CARD_WITHIN_DAYS = 2
 # Renderが再デプロイ直後は選手キャッシュが空で24選手のスクレイプに最大10分弱かかる。
 TIMEOUT = 900
 RETRIES = 2
@@ -43,6 +42,22 @@ def fetch_json(url: str):
 
 def parse_event_date(s: str):
     return datetime.strptime(s, "%b %d %Y").date()
+
+
+def _rotate_posts(posts: list, days_ahead: int) -> list:
+    """日替わりで1投稿だけ選ぶ。7日前と当日はmain、6〜1日前はcardをローテーション。"""
+    mains = [p for p in posts if p.get("type") == "main"]
+    cards = [p for p in posts if p.get("type") == "card"]
+
+    if days_ahead == WINDOW_DAYS or days_ahead == 0:
+        return mains[:1] or posts[:1]
+
+    if cards:
+        # days_ahead 6..1 → idx 0..5
+        idx = (WINDOW_DAYS - 1 - days_ahead) % len(cards)
+        return [cards[idx]]
+
+    return mains[:1] or posts[:1]
 
 
 def build_sections(today, events):
@@ -68,9 +83,7 @@ def build_sections(today, events):
             sections.append((days_ahead, f"{header}\n\n[生成失敗: {e}]"))
             continue
 
-        if days_ahead > FULL_CARD_WITHIN_DAYS:
-            main_only = [p for p in posts if p.get("type") == "main"]
-            posts = main_only or posts[:1]
+        posts = _rotate_posts(posts, days_ahead)
 
         body_parts = []
         for i, p in enumerate(posts, 1):
