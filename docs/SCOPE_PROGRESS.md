@@ -388,12 +388,13 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~note公開告知用X投稿テンプレのGmail下書き作成~~（2026-04-22完了：3パターン（ストレート／疑問形／データ特化）＋セルフリプ文＋運用Tipsを下書きに保存。X告知→引用RT→エンゲージ返しの動線付き）
 - [x] ~~UFC Fight Night 274 note記事のX告知投稿~~（2026-04-22完了：@fight_predict_ からnote URL付きで告知投稿。インプレッション・notePV・サイト流入の計測開始）
 - [x] ~~AdSense審査却下への対応（コンテンツページ大幅拡充）~~（2026-04-24完了：4/22時点の審査結果で「有用性の低いコンテンツ」「パブリッシャーのコンテンツを含まない画面における広告の扱い」で要確認判定。ツール一辺倒のSPAが原因と特定し、独自URLを持つコンテンツページを新設：`/how-it-works`（予測ロジック詳細・約3,500字）、`/articles` & `/articles/ufc-fight-night-274`（note全文転載・約6,120字）、`/faq`（Q&A 10件・約2,000字）。トップページ下部にも「このツールについて」「FAQ抜粋」を常時描画。合計約14,000字の静的コンテンツ追加。最小カスタムルーター＋軽量MDパーサー実装で新規依存ゼロ。`vercel.json` でSPA rewrites設定、sitemap.xmlを5URLに拡張。ページ毎に title/description/canonical/OG を動的更新。AdSense再申請＋Search Console サイトマップ再送信済み）
+- [x] ~~AdSense広告ユニットの先行実装~~（2026-04-24完了：`components/AdSlot.tsx` で有効化フラグ・slot ID・プレースメントを一元管理。計6箇所に配置（home-top/home-result/home-bottom/article-top/article-bottom/content-bottom）。現状 `ADS_ENABLED=false` で本番は何も描画しない状態。AdSense承認後は①フラグを`true`に ②`AD_SLOTS` 内のプレースホルダーIDを実slotIDに差し替え ③コミット＆push、の3ステップで即稼働。dev時は`<meta name="ads-debug" content="true">`をindex.htmlに追記すると点線枠で配置プレビュー可能。ビルド差分約+700B）
 
 ### 残タスク（優先順）
 
 **🔴 収益拡大（審査・待機系）**
 - [ ] AdSense再審査結果待ち（2026-04-24に大幅コンテンツ追加＋再申請。前回（4/14申請→4/22却下）の却下理由「有用性の低いコンテンツ」に対して、仕組み解説/記事/FAQの3ページ新設＋ホーム下部の常時コンテンツ化で対応済み）
-- [ ] AdSense承認後の広告ユニット配置設計・設置（ヘッダー直下／予測結果下／フッター近辺の候補）
+- [ ] AdSense承認後の slot ID 差し替え＆有効化（コードは2026-04-24に先行実装済、`components/AdSlot.tsx` の `ADS_ENABLED` と `AD_SLOTS` を書き換えるだけ）
 - [ ] 次の大会のnote事前記事公開（UFC Fight Night 274は2026-04-22公開済み。次は UFC Fight Night 275（5/2）／UFC 328（5/9）／RIZIN 53（5/10）／Rizin Landmark 14（6/6）を同じ仕組みで量産）
 - [ ] 楽天アフィバナーのクリック率測定・A/Bテスト（GA4データ蓄積後）
 - [ ] 有料プラン（Stripe連携・詳細分析・通知機能）
