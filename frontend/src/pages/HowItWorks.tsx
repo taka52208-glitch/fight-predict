@@ -1,5 +1,6 @@
 import { Nav, PageFooter } from "./Nav";
 import { navigate } from "../router";
+import { AdSlot } from "../components/AdSlot";
 
 export function HowItWorks() {
   return (
@@ -229,6 +230,8 @@ export function HowItWorks() {
             あくまで「データだけを見たらどちらに優位性があるか」の参考値としてご利用ください。
           </p>
         </section>
+
+        <AdSlot placement="content-bottom" />
 
         <section className="content-block">
           <h2>8. 的中率の公開</h2>

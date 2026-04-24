@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Nav, PageFooter } from "./Nav";
 import { navigate } from "../router";
+import { AdSlot } from "../components/AdSlot";
 
 type Qa = { q: string; a: ReactNode };
 
@@ -158,6 +159,8 @@ export function Faq() {
             </div>
           ))}
         </section>
+
+        <AdSlot placement="content-bottom" />
 
         <section className="content-block">
           <h2>他に知りたいことは？</h2>

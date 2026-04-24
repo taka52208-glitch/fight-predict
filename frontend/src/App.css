@@ -1858,3 +1858,37 @@ body {
   opacity: 0.7;
   line-height: 1.6;
 }
+
+/* ===== Ad Slots ===== */
+.ad-slot {
+  margin: 24px 0;
+  min-height: 50px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.ad-slot-debug {
+  margin: 24px 0;
+  padding: 28px 16px;
+  border: 2px dashed var(--accent-gold);
+  border-radius: 8px;
+  background: rgba(214, 158, 46, 0.06);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.85;
+}
+
+.ad-slot-debug-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  color: var(--accent-gold);
+  font-weight: 700;
+}
+
+.ad-slot-debug-name {
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: var(--text-h);
+}

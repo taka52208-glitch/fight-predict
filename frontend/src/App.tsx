@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import "./App.css";
 import { Nav } from "./pages/Nav";
 import { navigate } from "./router";
+import { AdSlot } from "./components/AdSlot";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -967,6 +968,8 @@ function App({ currentPath = "/" }: { currentPath?: string } = {}) {
         </button>
       </nav>
 
+      <AdSlot placement="home-top" />
+
       {activeTab === "predict" && (
         <main className="predict-section" role="tabpanel">
           <div className="input-area">
@@ -1078,6 +1081,8 @@ function App({ currentPath = "/" }: { currentPath?: string } = {}) {
 
               <ShareButton prediction={prediction} />
               <WatchBanner org={org} />
+
+              <AdSlot placement="home-result" />
             </div>
           )}
         </main>
@@ -1272,6 +1277,8 @@ function App({ currentPath = "/" }: { currentPath?: string } = {}) {
           )}
         </main>
       )}
+
+      <AdSlot placement="home-bottom" />
 
       <section className="home-about" aria-label="このツールについて">
         <h2>FIGHT PREDICT とは</h2>

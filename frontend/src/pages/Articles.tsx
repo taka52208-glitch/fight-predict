@@ -1,5 +1,6 @@
 import { Nav, PageFooter } from "./Nav";
 import { navigate } from "../router";
+import { AdSlot } from "../components/AdSlot";
 
 type ArticleCard = {
   slug: string;
@@ -81,6 +82,8 @@ export function Articles() {
             <li>Rizin Landmark 14（2026-06-06）</li>
           </ul>
         </section>
+
+        <AdSlot placement="content-bottom" />
 
         <section className="content-block">
           <h2>このサイトについて</h2>

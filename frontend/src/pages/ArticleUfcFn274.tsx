@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Nav, PageFooter } from "./Nav";
 import { mdToHtml } from "../markdown";
 import { navigate } from "../router";
+import { AdSlot } from "../components/AdSlot";
 import articleMd from "../articles/ufc-fight-night-274.md?raw";
 
 export function ArticleUfcFn274() {
@@ -19,6 +20,9 @@ export function ArticleUfcFn274() {
           <span>2026-04-22 公開</span>
           <span>読了目安 10分</span>
         </div>
+
+        <AdSlot placement="article-top" />
+
         <div dangerouslySetInnerHTML={{ __html: html }} />
 
         <div className="article-cta">
@@ -40,6 +44,8 @@ export function ArticleUfcFn274() {
             予測ロジックを確認する
           </button>
         </div>
+
+        <AdSlot placement="article-bottom" />
 
         <div className="article-related">
           <h4>関連ページ</h4>
