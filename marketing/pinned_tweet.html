@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0a0a0f;
+        --bg-card: #13131a;
+        --bg-card-2: #1a1a25;
+        --text: #c8c8d0;
+        --text-h: #ffffff;
+        --red: #e53e3e;
+        --blue: #3182ce;
+        --gold: #d69e2e;
+        --border: #2d2d3a;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 1200px;
+        height: 675px;
+        font-family: "Noto Sans JP", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      body {
+        position: relative;
+        overflow: hidden;
+        padding: 36px 56px;
+        background:
+          radial-gradient(ellipse at top left, rgba(229, 62, 62, 0.18), transparent 55%),
+          radial-gradient(ellipse at bottom right, rgba(214, 158, 46, 0.14), transparent 55%),
+          var(--bg);
+      }
+      .grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(45, 45, 58, 0.4) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(45, 45, 58, 0.4) 1px, transparent 1px);
+        background-size: 40px 40px;
+        opacity: 0.4;
+      }
+      .content {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .brand {
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        font-size: 30px;
+        background: linear-gradient(135deg, var(--red), var(--gold));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .subtitle {
+        color: var(--text);
+        font-size: 20px;
+        margin-top: 4px;
+        letter-spacing: 0.04em;
+      }
+      .headline {
+        margin-top: 22px;
+        color: var(--text-h);
+        font-size: 48px;
+        font-weight: 900;
+        line-height: 1.18;
+      }
+      .headline .accent {
+        background: linear-gradient(135deg, var(--red), var(--gold));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .features {
+        margin-top: 26px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .feature {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .feature .check {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--red), var(--gold));
+        color: #fff;
+        font-weight: 900;
+        font-size: 18px;
+        flex-shrink: 0;
+      }
+      .feature .label {
+        color: var(--text-h);
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .feature .sub {
+        color: var(--text);
+        font-size: 13px;
+        margin-top: 2px;
+      }
+      .feature-text {
+        display: flex;
+        flex-direction: column;
+      }
+      .footer {
+        position: absolute;
+        left: 56px;
+        right: 56px;
+        bottom: 60px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+      }
+      .cta {
+        color: var(--text-h);
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .cta .domain {
+        color: var(--gold);
+      }
+      .badges {
+        display: flex;
+        gap: 10px;
+      }
+      .badge {
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--bg-card-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-size: 14px;
+        letter-spacing: 0.05em;
+      }
+      .badge.highlight {
+        background: linear-gradient(135deg, var(--red), var(--gold));
+        color: #fff;
+        border-color: transparent;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid"></div>
+    <div class="content">
+      <div>
+        <div class="brand">FIGHT PREDICT</div>
+        <div class="subtitle">UFC・RIZIN 勝敗予測 AI</div>
+      </div>
+
+      <div class="headline">
+        選手名を入れるだけで<br />
+        <span class="accent">勝率 & 決着方法</span>がわかる
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <div class="check">✓</div>
+          <div class="feature-text">
+            <div class="label">17 項目スコアリング</div>
+            <div class="sub">打撃 / TD / 年齢 / 対戦相手の質 ほか</div>
+          </div>
+        </div>
+        <div class="feature">
+          <div class="check">✓</div>
+          <div class="feature-text">
+            <div class="label">機械学習ブレンド</div>
+            <div class="sub">ロジスティック回帰 × ルールベース</div>
+          </div>
+        </div>
+        <div class="feature">
+          <div class="check">✓</div>
+          <div class="feature-text">
+            <div class="label">的中率を完全公開</div>
+            <div class="sub">信頼度 HIGH / MID / LOW 別に開示</div>
+          </div>
+        </div>
+        <div class="feature">
+          <div class="check">✓</div>
+          <div class="feature-text">
+            <div class="label">完全無料 / 登録不要</div>
+            <div class="sub">UFC 全選手 + RIZIN 80 大会対応</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div class="cta">
+          ▶ <span class="domain">fight-predict</span>.vercel.app
+        </div>
+        <div class="badges">
+          <div class="badge">#UFC</div>
+          <div class="badge">#RIZIN</div>
+          <div class="badge highlight">AI 予測</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
