@@ -1,6 +1,6 @@
 """Generate note articles and X (Twitter) posts from event predictions."""
 
-from app.models.fighter import Prediction, Fighter, AccuracyStats
+from app.models.fighter import Prediction, Fighter, AccuracyStats, PredictionRecord
 
 SITE_URL = "https://fight-predict-takas-projects-de61dd0f.vercel.app"
 
@@ -244,6 +244,78 @@ def generate_x_posts(
         })
 
     return posts
+
+
+def generate_hit_log_post(event_name: str, records: list[PredictionRecord]) -> dict:
+    """Generate an X post comparing AI predictions vs actual results for one event.
+
+    `records` should be the already-resolved PredictionRecords for the event
+    (actual_winner set). Posts stay under X's 280-char limit: if too long
+    we drop individual fight lines starting from LOW-confidence fights.
+
+    Returns {"text": str, "type": "hit_log", "total": int, "correct": int}.
+    Returns text="" when records is empty so callers can skip sending.
+    """
+    if not records:
+        return {"text": "", "type": "hit_log", "total": 0, "correct": 0}
+
+    resolved = [r for r in records if r.actual_winner is not None]
+    scored = [r for r in resolved if r.is_correct is not None and r.actual_winner not in ("DRAW", "NC")]
+    total = len(scored)
+    correct = sum(1 for r in scored if r.is_correct)
+
+    org = records[0].organization if records else "UFC"
+    org_tags = {"UFC": "#UFC #MMA", "RIZIN": "#RIZIN #格闘技"}.get(org, "#MMA")
+
+    def _last(name: str) -> str:
+        return name.split()[-1] if " " in name else name
+
+    display_name = event_name.split(" - ")[0]
+    acc_pct = round(correct / total * 100) if total > 0 else 0
+
+    header = [
+        f"🎯 {display_name} AI予測 vs 結果",
+        "",
+        f"的中 {correct}/{total} ({acc_pct}%)",
+        "",
+    ]
+
+    # Build per-fight lines. Show correct ✅ first, then misses ❌.
+    conf_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    sorted_resolved = sorted(
+        resolved,
+        key=lambda r: (0 if r.is_correct else 1, conf_order.get(r.confidence, 3)),
+    )
+
+    def _line(r: PredictionRecord) -> str:
+        mark = "✅" if r.is_correct else ("❌" if r.actual_winner not in ("DRAW", "NC") else "➖")
+        pct = round(max(r.fighter_a_win_prob, r.fighter_b_win_prob) * 100)
+        if r.actual_winner in ("DRAW", "NC"):
+            return f"{mark} {_last(r.fighter_a_name)} vs {_last(r.fighter_b_name)} → {r.actual_winner}"
+        return f"{mark} {_last(r.predicted_winner)} {pct}%"
+
+    footer = [
+        "",
+        "全予測履歴👇",
+        SITE_URL,
+        "",
+        f"{org_tags} #FightPredict",
+    ]
+
+    # Iteratively drop trailing lines until under the 280-char X limit.
+    fight_lines = [_line(r) for r in sorted_resolved]
+    while True:
+        text = "\n".join(header + fight_lines + footer)
+        if len(text) <= 280 or not fight_lines:
+            break
+        fight_lines.pop()
+
+    return {
+        "text": text,
+        "type": "hit_log",
+        "total": total,
+        "correct": correct,
+    }
 
 
 def generate_weekly_stats_post(stats: AccuracyStats) -> dict:

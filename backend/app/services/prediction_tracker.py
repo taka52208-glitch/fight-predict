@@ -8,6 +8,7 @@ allow manual backup and restore of history data.
 import json
 import logging
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -98,6 +99,96 @@ def record_result(prediction_id: str, actual_winner: str) -> PredictionRecord | 
             _save_to_disk()
             return PredictionRecord(**rec)
     return None
+
+
+def _name_tokens(name: str) -> set[str]:
+    return {t for t in re.split(r"\s+", (name or "").lower().strip()) if t}
+
+
+def _name_match(a: str, b: str) -> bool:
+    """True if two fighter names likely refer to the same person.
+
+    Sherdog may render "Jon Jones" while predictions were saved as
+    "Jonathan Jones" (or with a middle name). We accept a match if the
+    two names share at least 2 tokens, or one side's tokens are fully
+    contained in the other (handles single-name cases like "Shogun").
+    """
+    ta, tb = _name_tokens(a), _name_tokens(b)
+    if not ta or not tb:
+        return False
+    if ta == tb:
+        return True
+    overlap = ta & tb
+    if len(overlap) >= 2:
+        return True
+    if ta <= tb or tb <= ta:
+        return True
+    return False
+
+
+def auto_resolve_from_event(event_results: dict) -> dict:
+    """Resolve pending predictions using a scraped event result.
+
+    Matches predictions to results by fighter-name pairs (order-insensitive).
+    Only touches records where actual_winner is None.
+
+    Returns a summary:
+        {
+          "resolved": [PredictionRecord dict, ...],  # newly-resolved records
+          "already_resolved": [PredictionRecord dict, ...],  # matched but had a result already
+          "unmatched_results": [{"fighter_a": ..., "fighter_b": ..., "winner": ...}, ...],
+        }
+    """
+    _init()
+    resolved: list[dict] = []
+    already: list[dict] = []
+    unmatched: list[dict] = []
+
+    for res in event_results.get("results", []):
+        ra, rb, winner = res.get("fighter_a", ""), res.get("fighter_b", ""), res.get("winner")
+        status = res.get("status", "")
+
+        matched_record = None
+        for rec in _history:
+            pa, pb = rec.get("fighter_a_name", ""), rec.get("fighter_b_name", "")
+            if (_name_match(ra, pa) and _name_match(rb, pb)) or \
+               (_name_match(ra, pb) and _name_match(rb, pa)):
+                matched_record = rec
+                break
+
+        if matched_record is None:
+            unmatched.append(res)
+            continue
+
+        if matched_record.get("actual_winner") is not None:
+            already.append(matched_record)
+            continue
+
+        if status == "win" and winner:
+            # Write the winner's name in the form stored on the prediction
+            # record so is_correct comparison below is consistent.
+            pa, pb = matched_record["fighter_a_name"], matched_record["fighter_b_name"]
+            canonical_winner = pa if _name_match(winner, pa) else pb
+            matched_record["actual_winner"] = canonical_winner
+            matched_record["is_correct"] = (
+                matched_record.get("predicted_winner", "").lower() == canonical_winner.lower()
+            )
+            resolved.append(matched_record)
+        elif status in ("draw", "nc"):
+            # Record the outcome but don't count toward accuracy — leave
+            # actual_winner as the status string so the UI can show it.
+            matched_record["actual_winner"] = status.upper()
+            matched_record["is_correct"] = False
+            resolved.append(matched_record)
+
+    if resolved:
+        _save_to_disk()
+
+    return {
+        "resolved": resolved,
+        "already_resolved": already,
+        "unmatched_results": unmatched,
+    }
 
 
 def get_accuracy_stats() -> AccuracyStats:

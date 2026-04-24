@@ -2,7 +2,7 @@
 
 ## 1. 基本情報
 
-- **ステータス**: v4完成＋マネタイズ基盤構築完了＋X下書き日替わりローテーション配信＋週次的中サマリー自動配信＋予測履歴永続化＋日次X運用フェーズ＋AdSense審査対応コンテンツページ拡充＋広告スロット先行実装＋X固定ツイート画像生成
+- **ステータス**: v4完成＋マネタイズ基盤構築完了＋X下書き日替わりローテーション配信＋週次的中サマリー自動配信＋的中ログ自動配信＋予測履歴永続化＋日次X運用フェーズ＋AdSense審査対応コンテンツページ拡充＋広告スロット先行実装＋X固定ツイート画像生成
 - **進捗率**: 100%（v4）／マネタイズ稼働中／X日次運用フェーズ（1日1投稿継続）／AdSense再審査中／Xアカウント初期グロース施策着手
 - **最終更新日**: 2026-04-25
 - **公開URL**: https://fight-predict-takas-projects-de61dd0f.vercel.app
@@ -391,6 +391,8 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [x] ~~AdSense広告ユニットの先行実装~~（2026-04-24完了：`components/AdSlot.tsx` で有効化フラグ・slot ID・プレースメントを一元管理。計6箇所に配置（home-top/home-result/home-bottom/article-top/article-bottom/content-bottom）。現状 `ADS_ENABLED=false` で本番は何も描画しない状態。AdSense承認後は①フラグを`true`に ②`AD_SLOTS` 内のプレースホルダーIDを実slotIDに差し替え ③コミット＆push、の3ステップで即稼働。dev時は`<meta name="ads-debug" content="true">`をindex.htmlに追記すると点線枠で配置プレビュー可能。ビルド差分約+700B）
 - [x] ~~初期グロース現状の棚卸しと戦略見直し~~（2026-04-25完了：note 0いいね・X全ポスト10imp以下というユーザー報告を受けて数値を分析。アカウント開設から2週間・0フォロワー状態では数学的に想定範囲内と整理。構造的課題として「コンテンツが無機質なAI羅列」「既存格闘技クラスタへのリプ・引用RT不在」「画像なしテキスト投稿」「7日前投稿のタイミング不一致」「差別化軸がbio等で打ち出せていない」を特定。優先アクションをA=bio・固定ツイート見直し／B=的中ログ自動投稿実装／C=スレッド先出し→note回収フロー変更／D=静観、に整理）
 - [x] ~~Xプロフィール刷新（bio案・固定ツイート文言・固定ツイート画像）~~（2026-04-25完了：bio案ABC・固定ツイート案ABCを作成、いずれも案Aを採用方針。固定ツイート用画像は `marketing/pinned_tweet.html` + Chrome headless で 1200×675 ダークテーマ画像を生成（`marketing/pinned_tweet.png`）。内容は「選手名を入れるだけで勝率＆決着方法がわかる」ヘッドラインと4機能カード（17項目スコアリング／機械学習ブレンド／的中率完全公開／完全無料）＋ドメイン＋ハッシュタグ。X側への実反映（bioテキスト更新・画像付き固定ツイート投稿）は手動タスク）
+- [x] ~~手動エンゲージplaybook作成~~（2026-04-25完了：`marketing/engagement_playbook.md` に運用ガイド作成。対象アカウント15件キュレーション／シーン別テンプレ5種／1日15分の動線／NG行動／週次KPI計測を整理。手動エンゲージ自体はユーザー作業）
+- [x] ~~的中ログ自動投稿機能の実装~~（2026-04-25完了：大会翌日に「AI予測 vs 実結果」をX投稿する仕組みを構築。Sherdog完了イベントページから勝者・決着方法をスクレイプする `services/event_results.py` 追加。保存済み予測とファイター名ペアで照合して `actual_winner` を自動入力する `auto_resolve_from_event()` を `prediction_tracker.py` に実装。`report_generator.py` に 280文字以内に収める `generate_hit_log_post()` を追加（✅/❌マーカー＋正解予測→外し予測の順でソート、溢れたら低信頼度から削る）。新エンドポイント: `POST /api/predictions/auto-resolve` / `GET /api/generate/hit-log` / `GET /api/events/recent`。GitHub Actions `x-hit-log.yml` が毎朝8:15 JSTに直近3日以内に終了した大会を検出して下書きをGmailに送信（対象なしの日はスキップ）。ファイター名マッチングは tokens 2個以上の重なり or 片方が他方の完全包含で柔軟に対応）
 
 ### 残タスク（優先順）
 
@@ -400,7 +402,6 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [ ] Xのbio・固定ツイートを実際に更新（`marketing/pinned_tweet.png` を使用、bio案A・固定ツイート案Aを採用、@fight_predict_ のプロフィールで手動反映）
 - [ ] 次の大会のnote事前記事公開（UFC Fight Night 274は2026-04-22公開済み。次は UFC Fight Night 275（5/2）／UFC 328（5/9）／RIZIN 53（5/10）／Rizin Landmark 14（6/6）を同じ仕組みで量産。投稿フローは「スレッド先出し→noteで回収」への移行を検討）
 - [ ] 既存格闘技クラスタへの手動エンゲージ開始（UFC公式・RIZIN公式・注目選手のツイートへのリプ／引用RTで露出獲得）
-- [ ] 的中ログ自動投稿機能の実装（大会翌日に「AI予想 vs 実結果」をX投稿。最大の差別化要素として優先度高）
 - [ ] 楽天アフィバナーのクリック率測定・A/Bテスト（GA4データ蓄積後）
 - [ ] 有料プラン（Stripe連携・詳細分析・通知機能）
 - [ ] LINE公式アカウント開設
@@ -414,7 +415,6 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - [ ] カスタムドメイン割当
 - [ ] Render Starterプラン（$7/月）でスリープ回避（Actions pingで事足りれば不要）
 - [ ] X Bot化で完全自動投稿（API pay-per-use $5/月相当、収益が月$5超えたら検討）
-- [ ] 的中ログ自動配信（大会翌日に予想vs結果を比較、Gmail or X投稿）
 - [ ] note事前記事の下書き自動生成（X下書きと同じ仕組みで拡張可能）
 
 ### 運用メモ

@@ -659,6 +659,79 @@ async def get_upcoming_ufc_events_via_sherdog() -> list[dict]:
     return _parse_sherdog_event_tables(html, org_filter="ufc", organization_label="UFC")[:5]
 
 
+def _parse_recent_sherdog_events(
+    html: str, org_filter: str, organization_label: str, days: int
+) -> list[dict]:
+    """Extract events whose date is within the past `days` days (completed)."""
+    from datetime import datetime, timedelta
+
+    soup = BeautifulSoup(html, "lxml")
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    earliest = today - timedelta(days=days)
+
+    events: list[dict] = []
+    seen: set[str] = set()
+
+    for table in soup.find_all("table", class_="new_table"):
+        for row in table.find_all("tr"):
+            cells = row.find_all("td")
+            if len(cells) < 2:
+                continue
+
+            link = None
+            for c in (cells[1:] + cells[:1]):
+                a = c.find("a", href=lambda h: h and "/events/" in h)
+                if a:
+                    link = a
+                    break
+            if not link:
+                continue
+
+            event_name = link.get_text(strip=True)
+            if org_filter and org_filter not in event_name.lower():
+                continue
+
+            href = link.get("href", "")
+            event_url = SHERDOG_BASE + href if href.startswith("/") else href
+
+            date_text = cells[0].get_text(" ", strip=True)
+            parsed = _parse_sherdog_event_date(date_text)
+            if not parsed or parsed >= today or parsed < earliest:
+                continue
+
+            if event_url in seen:
+                continue
+            seen.add(event_url)
+
+            events.append({
+                "name": event_name,
+                "date": date_text,
+                "url": event_url,
+                "organization": organization_label,
+            })
+
+    events.sort(key=lambda e: _parse_sherdog_event_date(e["date"]) or datetime.min, reverse=True)
+    return events
+
+
+async def get_recent_rizin_events(days: int = 3) -> list[dict]:
+    """RIZIN events that ended within the past `days` days."""
+    try:
+        html = await fetch_page(RIZIN_ORG_URL)
+    except Exception:
+        return []
+    return _parse_recent_sherdog_events(html, org_filter="rizin", organization_label="RIZIN", days=days)
+
+
+async def get_recent_ufc_events_via_sherdog(days: int = 3) -> list[dict]:
+    """UFC events that ended within the past `days` days."""
+    try:
+        html = await fetch_page(UFC_SHERDOG_URL)
+    except Exception:
+        return []
+    return _parse_recent_sherdog_events(html, org_filter="ufc", organization_label="UFC", days=days)
+
+
 def _split_concatenated_name(raw: str) -> str:
     """Sherdog's <span itemprop=\"name\"> renders first/last with no separator.
     Example: 'KylerPhillips' -> 'Kyler Phillips'. Apply camel-case split while

@@ -19,6 +19,8 @@ from app.services.rizin_scraper import (
     get_upcoming_rizin_events,
     get_rizin_event_fights,
     get_upcoming_ufc_events_via_sherdog,
+    get_recent_rizin_events,
+    get_recent_ufc_events_via_sherdog,
 )
 from app.services.rizin_cache import suggest_rizin_all, get_all_jp_names
 from app.services.predictor import calculate_prediction
@@ -29,11 +31,14 @@ from app.services.prediction_tracker import (
     get_pending_predictions,
     export_history,
     import_history,
+    auto_resolve_from_event,
 )
+from app.services.event_results import fetch_event_results
 from app.services.report_generator import (
     generate_note_article,
     generate_weekly_stats_post,
     generate_x_posts,
+    generate_hit_log_post,
 )
 from app.services.name_mapping import get_romaji_query
 
@@ -379,6 +384,23 @@ async def upcoming_events(org: str = "all"):
     return events
 
 
+@app.get("/api/events/recent")
+async def recent_events(org: str = "all", days: int = 3):
+    """Events that ended within the last `days` days (for hit-log pipeline)."""
+    events: list[dict] = []
+    if org in ("all", "ufc"):
+        try:
+            events.extend(await get_recent_ufc_events_via_sherdog(days=days))
+        except Exception as e:
+            logger.error(f"recent UFC events fetch failed: {e}")
+    if org in ("all", "rizin"):
+        try:
+            events.extend(await get_recent_rizin_events(days=days))
+        except Exception as e:
+            logger.error(f"recent RIZIN events fetch failed: {e}")
+    return events
+
+
 @app.get("/api/events/{org}/{event_url:path}/fights")
 async def event_fights(org: str, event_url: str):
     """Get fight card for a specific event."""
@@ -593,6 +615,71 @@ async def generate_weekly_stats():
     """Generate an X post summarizing overall prediction accuracy."""
     stats = get_accuracy_stats()
     return generate_weekly_stats_post(stats)
+
+
+@app.post("/api/predictions/auto-resolve")
+async def auto_resolve_predictions(event_url: str):
+    """Scrape a completed event's results and auto-resolve matching predictions.
+
+    Returns counts of newly-resolved / already-resolved / unmatched results,
+    plus the event metadata. Safe to call repeatedly — records with existing
+    actual_winner are not overwritten.
+    """
+    if not _validate_event_url(event_url):
+        raise HTTPException(status_code=400, detail="無効なイベントURLです")
+
+    event = await fetch_event_results(event_url)
+    if not event:
+        raise HTTPException(status_code=404, detail="イベント結果が見つかりません（未開催または未入力）")
+
+    summary = auto_resolve_from_event(event)
+    return {
+        "event_name": event["event_name"],
+        "event_date": event["event_date"],
+        "organization": event["organization"],
+        "resolved_count": len(summary["resolved"]),
+        "already_resolved_count": len(summary["already_resolved"]),
+        "unmatched_count": len(summary["unmatched_results"]),
+        "resolved": summary["resolved"],
+        "unmatched_results": summary["unmatched_results"],
+    }
+
+
+@app.get("/api/generate/hit-log")
+async def generate_hit_log(event_url: str):
+    """Generate an X post comparing AI predictions vs actual results.
+
+    Auto-resolves pending predictions for the event first, then composes
+    the hit-log post from all resolved records matching the event's fights.
+    Returns text="" when nothing can be resolved (so callers can skip).
+    """
+    if not _validate_event_url(event_url):
+        raise HTTPException(status_code=400, detail="無効なイベントURLです")
+
+    event = await fetch_event_results(event_url)
+    if not event:
+        return {"text": "", "type": "hit_log", "total": 0, "correct": 0, "event_name": ""}
+
+    summary = auto_resolve_from_event(event)
+
+    # Gather every PredictionRecord matching this event's fight list —
+    # resolved records from both this run and prior ones.
+    from app.services.prediction_tracker import _history, _name_match
+    matched: list[PredictionRecord] = []
+    for res in event["results"]:
+        ra, rb = res.get("fighter_a", ""), res.get("fighter_b", "")
+        for rec in _history:
+            pa, pb = rec.get("fighter_a_name", ""), rec.get("fighter_b_name", "")
+            if (_name_match(ra, pa) and _name_match(rb, pb)) or \
+               (_name_match(ra, pb) and _name_match(rb, pa)):
+                if rec.get("actual_winner") is not None:
+                    matched.append(PredictionRecord(**rec))
+                break
+
+    post = generate_hit_log_post(event["event_name"], matched)
+    post["event_name"] = event["event_name"]
+    post["resolved_this_run"] = len(summary["resolved"])
+    return post
 
 
 # ===== Data Export / Import (backup for ephemeral storage) =====
