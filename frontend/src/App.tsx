@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import "./App.css";
+import { Nav } from "./pages/Nav";
+import { navigate } from "./router";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -698,7 +700,8 @@ function InfoModal({ view, onClose }: { view: "privacy" | "about"; onClose: () =
   );
 }
 
-function App() {
+function App({ currentPath = "/" }: { currentPath?: string } = {}) {
+  void currentPath; // reserved for future per-route tab selection
   const [fighterAName, setFighterAName] = useState("");
   const [fighterBName, setFighterBName] = useState("");
   const [org, setOrg] = useState<"ufc" | "rizin">("ufc");
@@ -916,9 +919,13 @@ function App() {
 
   return (
     <div className="app">
+      <Nav current="/" />
       <header className="header">
         <h1>FIGHT PREDICT</h1>
-        <p>格闘技試合予測ツール</p>
+        <p>UFC・RIZIN の試合結果をAIが無料で予測</p>
+        <p className="hero-sub">
+          17項目スコアリング＋機械学習モデルで、勝率・決着方法・信頼度・根拠まで表示。選手名を入力するだけで誰でも使えます。
+        </p>
       </header>
 
       {wakingUp && (
@@ -1266,7 +1273,82 @@ function App() {
         </main>
       )}
 
+      <section className="home-about" aria-label="このツールについて">
+        <h2>FIGHT PREDICT とは</h2>
+        <p>
+          FIGHT PREDICTは、UFCとRIZINの任意の2選手について、公開スタッツと過去の戦績から
+          AIが勝敗確率と信頼度を算出する無料の格闘技予測ツールです。
+          ブックメーカーのオッズや主観的な評価ではなく、選手データだけを機械的に比較した結果を出すことを目的としています。
+          17項目のスコアリング（勝率・直近の連勝連敗・打撃・テイクダウン・年齢・リーチ・対戦相手の質など）と、
+          Sherdogの過去試合データで訓練したロジスティック回帰の機械学習モデルを組み合わせ、
+          両者の勝率・想定される決着方法（KO/Submission/Decision）・信頼度（HIGH/MEDIUM/LOW）・判断根拠を返します。
+        </p>
+        <p>
+          予測は選手名を入力するだけ。日本語（漢字・ひらがな・カタカナ）と英語のいずれにも対応しているので、
+          「朝倉未来」「あさくらみくる」「Mikuru Asakura」のどれでも検索できます。
+          「大会一覧」タブから開催予定の大会を選べば、全試合の一括予測もワンクリックで表示されます。
+          予測結果は画像としてダウンロードしたり、OGP対応のXシェアボタンでそのままSNSに投稿することも可能です。
+        </p>
+        <p>
+          予測の精度を検証するため、過去の予測結果はすべて「的中率」タブで公開しています。
+          信頼度ランクごとの的中率の内訳まで透明に開示しているので、
+          「HIGHのときは本当に当たるのか」「LOWはどれくらい外れるのか」を事前に把握したうえで使えます。
+          格闘技観戦を、データの観点から少しだけ深く楽しむためのツールとしてお使いください。
+        </p>
+        <div className="home-about-links">
+          <button onClick={() => navigate("/how-it-works")}>予測ロジックの詳細を見る</button>
+          <button className="secondary" onClick={() => navigate("/articles")}>大会別予測記事を読む</button>
+          <button className="secondary" onClick={() => navigate("/faq")}>よくある質問</button>
+        </div>
+      </section>
+
+      <section className="home-faq" aria-label="よくある質問">
+        <h2>よくある質問（抜粋）</h2>
+        <div className="home-faq-list">
+          <div className="home-faq-item">
+            <h3>Q. 予測の精度はどれくらいですか？</h3>
+            <p>
+              信頼度HIGHのカードでは比較的高い的中率、LOW（接戦カード）では半々に近い傾向があります。
+              具体的な数値は「的中率」タブで常時公開しているため、過去の実績を見たうえで予測の信頼度を判断できます。
+            </p>
+          </div>
+          <div className="home-faq-item">
+            <h3>Q. どの団体に対応していますか？</h3>
+            <p>
+              現在はUFCとRIZINに対応。UFCはUFCstats.com、RIZINはSherdog.comのデータを使用しています。
+              Bellator・ONE・PFLは現時点では対象外です。
+            </p>
+          </div>
+          <div className="home-faq-item">
+            <h3>Q. 有料ですか？</h3>
+            <p>
+              予測ツール本体は完全無料です。広告表示と、格闘技配信サービス・用品への
+              アフィリエイトリンクで運営しています。noteの大会別予測レポートも現在は全て無料公開中。
+            </p>
+          </div>
+          <div className="home-faq-item">
+            <h3>Q. 選手のスタッツが公式と違う？</h3>
+            <p>
+              UFC選手はUFCstats.comの公式値をそのまま表示、RIZIN選手は打撃・TD等を戦績から推定しています。
+              推定値使用時は予測根拠欄に明示され、信頼度も自動ダウングレードされます。
+            </p>
+          </div>
+        </div>
+        <div className="home-faq-more">
+          <button onClick={() => navigate("/faq")}>FAQをすべて見る →</button>
+        </div>
+      </section>
+
       <footer className="app-footer">
+        <div className="footer-site-nav">
+          <a href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }}>予測ツール</a>
+          <span className="footer-sep">|</span>
+          <a href="/how-it-works" onClick={(e) => { e.preventDefault(); navigate("/how-it-works"); }}>仕組み</a>
+          <span className="footer-sep">|</span>
+          <a href="/articles" onClick={(e) => { e.preventDefault(); navigate("/articles"); }}>記事</a>
+          <span className="footer-sep">|</span>
+          <a href="/faq" onClick={(e) => { e.preventDefault(); navigate("/faq"); }}>FAQ</a>
+        </div>
         <div className="footer-links">
           <a
             href={AFFILIATE_LINKS.ufc.url}
