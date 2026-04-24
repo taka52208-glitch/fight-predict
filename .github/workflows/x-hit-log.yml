@@ -1,22 +1,24 @@
-name: x-hit-log                                                                                                                                                                 
-                  
-  on:
-    schedule:
-      - cron: '15 23 * * *'                                                                                                                                                       
-    workflow_dispatch:
-                                                                                                                                                                                  
-  jobs:           
-    hitlog:
-      runs-on: ubuntu-latest
-      timeout-minutes: 20
-      steps:                                                                                                                                                                      
-        - uses: actions/checkout@v4
-        - uses: actions/setup-python@v5                                                                                                                                           
-          with:   
-            python-version: '3.12'
-        - name: Generate hit-log drafts and send email                                                                                                                            
-          env:
-            GMAIL_USER: ${{ secrets.GMAIL_USER }}                                                                                                                                 
-            GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}                                                                                                                 
-            RECIPIENT: ${{ secrets.RECIPIENT }}                                                                                                                                   
-          run: python .github/scripts/generate_hit_log.py       
+name: x-hit-log
+
+# 毎朝8時JSTに、直近3日以内に終了した大会の「AI予測 vs 結果」X投稿下書きを
+# 生成してGmailへ送信。対象大会がない・投稿可能な履歴がない日はスキップ。
+on:
+  schedule:
+    - cron: '15 23 * * *'  # 23:15 UTC = 08:15 JST (daily drafts の15分後にずらす)
+  workflow_dispatch:
+
+jobs:
+  hitlog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate hit-log drafts and send email
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT: ${{ secrets.RECIPIENT }}
+        run: python .github/scripts/generate_hit_log.py
