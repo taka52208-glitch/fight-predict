@@ -397,8 +397,8 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 ### 残タスク（優先順）
 
 **🔴 収益拡大（自動化で殴れる候補・2026-04-27整理）**
-ユーザーの手動運用（bio更新／手動エンゲージ／note量産）は ROI 観点で実行されない前提で、コードで殴れる集客施策を整理。優先度はB→A→E。
-- [-] **B. X Bot化で完全自動投稿**（コード実装済・Secrets登録待ち）— `.github/scripts/x_poster.py` 新規＋既存workflow 3本（daily-drafts/hit-log/weekly-stats）にX API投稿処理を組込み済み。`X_BOT_ENABLED=true` フラグで段階導入可能、投稿失敗時もGmailは届く設計。Free tier（月1500投稿）で十分。残作業は ①X Developer Portal で App作成＋APIキー発行（手順 `docs/X_BOT_SETUP.md`） ②GitHub Secrets に5件登録 ③`X_BOT_ENABLED=true` で本番化。
+ユーザーの手動運用（bio更新／手動エンゲージ／note量産）は ROI 観点で実行されない前提で、コードで殴れる集客施策を整理。優先度はA→E（B は2026-04-28に有料判明で凍結）。
+- [-] **B. X Bot化で完全自動投稿**（コード実装済／2026-04-28に有料判明で凍結）— `.github/scripts/x_poster.py` 新規＋既存workflow 3本にX API投稿処理を組込み済み、`X_BOT_ENABLED=true` フラグで切替可能。Secrets登録（X_API_KEY等5件）も完了。**ただし2026-04-28テスト時に X API が status=402 CreditsDepleted を返却**：新規開発者アカウントは Free tier 廃止済みで Pay Per Use（最小チャージ要課金）のみ選択可。月コスト見積は$0.10未満だが最小チャージ額が割に合わずユーザー判断で凍結。`X_BOT_ENABLED=false` 固定で運用、Gmail下書きフローは継続。X API有料化が安価になるか、Bluesky/Mastodon等の代替プラットフォーム検討時に再開可能。
 - [ ] **A. プログラマティックSEO** — UFC全選手＋RIZIN全選手の個別ページを自動生成（数千ページ規模）。各ページ「[選手名] 戦績／直近5試合／AI評価」をSEO最適化、long-tailキーワードで永久流入。既存sitemap/JSON-LD仕組みに乗せる、1-2日のコード書き。
 - [ ] **C. note戦略を事前→事後に転換** — 「事前予測note」は検索需要なし（マイナーカードを誰も検索しない）。「[大会名] 結果 AI予測の答え合わせ」型に切り替え、的中ログ生成基盤を活用してGitHub Actionsからnote下書き自動生成。
 - [ ] **E. 的中ログの物語化** — 現状の「○勝○敗」機械的出力を、「HIGH信頼度がまさかの外れ」「LOWで奇跡的中」型コピーに改良（`report_generator.py`）。Bと組み合わせるとXで素材化される。
@@ -434,3 +434,4 @@ https://fight-predict-takas-projects-de61dd0f.vercel.app
 - 2026-04-25: note 0いいね・Xポスト全10imp以下という現状を棚卸し。開設2週間・0フォロワーから始めているため数値自体は想定範囲内だが、現状のやり方のまま3ヶ月で目標達成は厳しく、6ヶ月が現実ライン。AdSense収益は月3桁が現実的なため、主戦場はABEMA PPV等のアフィ（1件1,000〜3,000円）。現状の構造的課題（無機質なAI羅列／格闘技クラスタ未接触／画像なし投稿／早すぎる事前投稿／差別化軸の打ち出し不足）への対処を優先。
 - 2026-04-27: 戦略再棚卸し。問題は「ツール完成・収益経路設置済み・集客のみ未着手（=0%）」と整理。集客投入リソースは「時間／金／自動化コード」の3択で、ユーザーは時間・金投入の意思なしと確認。残る道は **コードで殴れる自動施策**。bio・固定ツイート手動更新／手動エンゲージ／note量産は当面保留扱いに移し、自動化候補A〜F（X Bot化、プログラマティックSEO、note戦略転換、Discord Bot、的中ログ物語化、スレッド先出し）を新規残タスクとして整理。優先順は B→A→E。次の選択待ち。
 - 2026-04-27: bio・固定ツイート反映を試みた際、現状bioが新案ABCとほぼ同等と判明。固定ツイート画像化のみ提案したがユーザー判断でスキップ。素材（`marketing/x_profile_drafts.md`／`marketing/pinned_tweet.png`）は温存。
+- 2026-04-28: B（X Bot化）凍結判断。コード／Secrets／PAT認証フローまで全部通したが、最終テストで X API status=402 CreditsDepleted。新規開発者アカウントは Free tier 廃止＝Pay Per Use（最小チャージ要）のみで、ユーザー判断で「無料じゃないなら諦める」。`X_BOT_ENABLED=false` で凍結、コードは温存（API無料化／代替プラットフォーム移行時に流用可能）。次の優先施策は A. プログラマティックSEO に切替。
