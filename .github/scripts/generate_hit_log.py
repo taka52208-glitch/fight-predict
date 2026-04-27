@@ -16,6 +16,8 @@ from email.message import EmailMessage
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+import x_poster  # noqa: E402  同ディレクトリ内モジュール
+
 API_BASE = os.environ.get("API_BASE", "https://fight-predict-api.onrender.com")
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
@@ -78,13 +80,17 @@ def main():
             print(f"[{today}] {ev.get('name')} → 投稿対象なし（予測履歴なし）")
             continue
 
+        text = post["text"]
+        posted, status = x_poster.try_post(text, label=f"hit-log {ev.get('name', '')}")
+        status_line = f"[{status}]" if status else ""
+
         header = (
-            f"## {ev.get('name', '')}\n"
+            f"## {ev.get('name', '')} {status_line}\n"
             f"{ev.get('date', '')} ({ev.get('organization', '?')}) | "
             f"{post.get('correct', 0)}/{post.get('total', 0)}的中 "
             f"／今回新規解決: {post.get('resolved_this_run', 0)}件"
         )
-        sections.append(f"{header}\n\n{post['text']}")
+        sections.append(f"{header}\n\n{text}")
 
     if not sections:
         print(f"[{today}] 送信可能な的中ログなし。スキップ。")

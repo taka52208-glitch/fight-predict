@@ -13,6 +13,8 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from urllib.request import Request, urlopen
 
+import x_poster  # noqa: E402  同ディレクトリ内モジュール
+
 API_BASE = os.environ.get("API_BASE", "https://fight-predict-api.onrender.com")
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
@@ -59,12 +61,17 @@ def main():
         print(f"[{today}] 的中記録なし。メールスキップ。")
         return 0
 
+    text = post["text"]
+    posted, status = x_poster.try_post(text, label="weekly-stats")
+    status_line = f"[{status}]\n" if status else ""
+
     body = (
         f"📊 週次的中サマリー {today.isoformat()} (JST)\n"
         f"累計的中数: {post['total']}件\n"
-        f"\n以下をそのままXに投稿してください。\n"
+        f"{status_line}"
+        f"\n以下をそのままXに投稿してください（X投稿成功時は確認用）。\n"
         f"\n================================\n\n"
-        f"{post['text']}"
+        f"{text}"
     )
     subject = f"週次的中サマリー {today.isoformat()}"
     send_email(subject, body)

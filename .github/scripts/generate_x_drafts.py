@@ -14,6 +14,8 @@ from email.message import EmailMessage
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+import x_poster  # noqa: E402  同ディレクトリ内モジュール
+
 API_BASE = os.environ.get("API_BASE", "https://fight-predict-api.onrender.com")
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
@@ -88,7 +90,12 @@ def build_sections(today, events):
         body_parts = []
         for i, p in enumerate(posts, 1):
             label = p.get("type", "post")
-            body_parts.append(f"--- [{i}/{len(posts)}] {label} ---\n{p['text']}")
+            text = p.get("text", "")
+            posted, status = x_poster.try_post(text, label=f"{ev['name']} {label}")
+            status_line = f"[{status}]" if status else ""
+            body_parts.append(
+                f"--- [{i}/{len(posts)}] {label} {status_line} ---\n{text}"
+            )
         sections.append((days_ahead, f"{header}\n\n" + "\n\n".join(body_parts)))
 
     sections.sort(key=lambda x: x[0])
